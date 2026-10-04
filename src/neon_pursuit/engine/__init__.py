@@ -1,0 +1,63 @@
+"""Pure, deterministic game engine (no pygame dependency)."""
+
+from .analysis import (
+    degree,
+    nearest_core,
+    safe_core_distance,
+    survivor_territory,
+    territory_fraction,
+    territory_owner_map,
+    threat_distance,
+)
+from .board import UNREACHABLE, GameMap, generate_map
+from .rng import derive_seed, make_rng
+from .rules import IllegalActionError, apply_action, initial_state, is_legal, legal_actions, path_of
+from .types import (
+    ALL_ACTIONS,
+    Action,
+    CaptureEvent,
+    CoreCollectedEvent,
+    CoreSpawnedEvent,
+    GameEvent,
+    GameState,
+    MatchConfig,
+    MatchEndEvent,
+    MoveEvent,
+    Role,
+    Status,
+    WinReason,
+)
+
+__all__ = [
+    "ALL_ACTIONS",
+    "UNREACHABLE",
+    "Action",
+    "CaptureEvent",
+    "CoreCollectedEvent",
+    "CoreSpawnedEvent",
+    "GameEvent",
+    "GameMap",
+    "GameState",
+    "IllegalActionError",
+    "MatchConfig",
+    "MatchEndEvent",
+    "MoveEvent",
+    "Role",
+    "Status",
+    "WinReason",
+    "apply_action",
+    "degree",
+    "derive_seed",
+    "generate_map",
+    "initial_state",
+    "is_legal",
+    "legal_actions",
+    "make_rng",
+    "nearest_core",
+    "path_of",
+    "safe_core_distance",
+    "survivor_territory",
+    "territory_fraction",
+    "territory_owner_map",
+    "threat_distance",
+]
