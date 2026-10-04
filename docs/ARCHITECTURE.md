@@ -18,8 +18,10 @@ flowchart TD
     BENCH[benchmark/<br/>runner · report] --> AI
     BRAIN --> AI
     subgraph AI[ai/ — agents]
-        MCTS[mcts.py] & MM[minimax.py] & FZ[fuzzy/] & BASE[simple.py] --> H[heuristics.py]
+        MCTS[mcts.py] & MM[minimax.py] & FZ[fuzzy/<br/>system · genome · controllers] & BASE[simple.py] --> H[heuristics.py]
+        GA[fuzzy/tuning.py<br/>genetic algorithm] --> FZ
     end
+    GA --> BENCH
     AI --> ENGINE
     CTRL --> ENGINE
     subgraph ENGINE[engine/ — pure, deterministic]
@@ -33,7 +35,7 @@ flowchart TD
 | Package | Responsibility | Depends on |
 |---|---|---|
 | `engine` | Immutable `GameState`, `MatchConfig`, seeded map generation, rules, board analysis | stdlib only |
-| `ai` | `Agent` interface, MCTS, Minimax, Fuzzy (engine + controllers), baselines, registry | `engine` |
+| `ai` | `Agent` interface, MCTS, Minimax, Fuzzy (engine, genomes, controllers), baselines, registry, GA tuner | `engine` (the tuner also uses `benchmark`) |
 | `benchmark` | Headless matches, parallel tournaments (`ProcessPoolExecutor`), CSV/JSON/MD export | `engine`, `ai` |
 | `game` | Rendering, input, scenes, background AI execution | everything above + pygame-ce |
 | `cli` | `argparse` entry point (`neon-pursuit`) | everything above; pygame is imported lazily |
@@ -44,6 +46,14 @@ flowchart TD
 a new state and can emit `GameEvent`s for the UI. There is no hidden randomness: core respawns
 come from a precomputed, seeded sequence. That keeps MCTS and Minimax trees exact and makes
 every match reproducible from its seed.
+
+**Deterministic search budgets.** MCTS stops after N iterations and Minimax after N nodes,
+never on wall-clock time. With a time budget, an agent's strength depended on how busy the CPU
+was, so benchmark results drifted between runs. Wall-clock limits remain only as safety nets.
+
+**Bounded parallelism.** Tournaments, the Benchmark Lab and the GA run matches in worker
+processes, `min(8, CPUs − 1)` by default (`benchmark.runner.default_workers`). An earlier
+unbounded default ran a 16 GB machine out of memory during long tuning runs.
 
 **Precomputed path tables.** The arena has 315 cells. An all-pairs BFS distance table
 (~100 k entries) is built once per map and cached with `functools.lru_cache`. Distance, threat,
@@ -78,7 +88,8 @@ and scales it to any window size (or full screen with F11) and maps mouse coordi
 .
 ├── src/neon_pursuit/
 │   ├── engine/          # rules, map generation, analysis (pure)
-│   ├── ai/              # MCTS, minimax, fuzzy/, baselines, heuristics, registry
+│   ├── ai/              # MCTS, minimax, fuzzy/ (system, genome, controllers, tuning, tuned.json),
+│   │                    # baselines, heuristics, registry
 │   ├── benchmark/       # tournaments + report export
 │   ├── game/            # pygame UI: app, scenes/, render, panels, widgets, theme, brain
 │   ├── assets/fonts/    # Orbitron, Rajdhani, JetBrains Mono (SIL OFL)

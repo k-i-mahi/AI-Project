@@ -248,13 +248,15 @@ def _draw_fuzzy(
         if insight.fuzzy_output is not None:
             cx = plot.left + plot.width * insight.fuzzy_output
             pygame.draw.line(surface, theme.TEXT, (cx, plot.top + 2), (cx, plot.bottom - 2), 2)
+            right_side = insight.fuzzy_output > 0.6
             theme.blit_text(
                 surface,
                 f"centroid {insight.fuzzy_output:.2f}",
-                (cx + 4, plot.top + 2),
+                (cx - 4 if right_side else cx + 4, plot.top + 2),
                 "mono",
                 12,
                 theme.TEXT,
+                "topright" if right_side else "topleft",
             )
 
 

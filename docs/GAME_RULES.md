@@ -11,13 +11,13 @@ deterministic and has perfect information. One side is the **Hunter**, the other
 | Size | 21 × 15 tiles | including a solid border |
 | Walls | ~24 % of the interior | short straight / L-shaped segments that never touch, leaving corridors open |
 | Symmetry | left ↔ right mirrored walls | a balanced layout |
-| Connectivity | guaranteed | only the largest connected region is kept |
-| Spawns | **random** | never in a dead end, at least 12 steps apart (`max(8, (w + h) // 3)`) |
+| Connectivity | guaranteed | only the largest connected floor region is kept |
+| Spawns | **random** | never in a dead end, at least `max(8, (w + h) // 3)` = 12 path steps apart |
 
 Every map is generated from a **seed**. The same seed always produces the same arena, the
 same spawn positions, the same core spawn order and (with the same agents) the same match.
-Every new game from the menu picks a random seed, so spawns change each time. A rematch
-(`R`) keeps the seed; *New map* (`M`) rolls a new one.
+Every new game from the menu picks a random seed, so maps and spawns change each time.
+Rematch (`R`) keeps the seed; *New map* (`M`) rolls a new one.
 
 ## Turn structure
 
@@ -26,24 +26,26 @@ Every new game from the menu picks a random seed, so spawns change each time. A 
 
 These two moves make up one *round*. On its turn a side may:
 
-| Action | Effect |
-|---|---|
-| Wait | stay in place |
-| Step N / E / S / W | move one tile |
-| **Burst** N / E / S / W | move two tiles in a straight line (both must be open) |
+| Action | Who | Effect |
+|---|---|---|
+| Wait | both | stay in place |
+| Step N / E / S / W | both | move one tile |
+| **Pounce** N / E / S / W | Hunter | move two tiles in a straight line (both open); captures if the first tile hits the Survivor. 9-round cooldown |
+| **Blink Dash** N / E / S / W | Survivor | move two tiles in a straight line, and the middle tile may be a **wall** (it leaps over it). 7-round cooldown, costs 3 energy, needs more than 3 energy |
+| **EMP Pulse** | Survivor | only when the Hunter is within 3 path steps: the Hunter is **stunned for 3 turns** (it may only wait). 18-round cooldown, costs 4 energy |
 
-A burst is called a **Dash** for the Survivor (7-round cooldown, costs 3 extra energy, needs more
-than 3 energy) and a **Pounce** for the Hunter (9-round cooldown). A pounce captures the
-Survivor if its *first* tile reaches it. The Survivor may never step onto, or dash through,
-the Hunter's tile.
+The Survivor may never step onto, or dash through, the Hunter's tile.
 
 ## Energy and cores
 
 * Four **energy cores** are on the board at all times.
-* Moving onto a core (including the mid-tile of a dash) collects it and restores **+15 energy**,
-  capped at 45.
+* Moving onto a core (including the middle tile of a dash) collects it and restores
+  **+15 energy**, capped at 45.
 * The Survivor starts with **35 energy** and loses **1 per round**.
-* Collected cores respawn from a deterministic sequence, never within 4 tiles of the Survivor.
+* Collected cores respawn from a deterministic sequence, never within 4 steps of either player,
+  and preferably **inside the Survivor's territory** (cells it reaches strictly before the
+  Hunter). Without this rule a strong Hunter could win simply by camping between the Survivor
+  and the food. The [benchmarks](BENCHMARKS.md) showed that happening before the rule existed.
 
 ## How a match ends
 
@@ -51,12 +53,8 @@ the Hunter's tile.
 |---|---|---|
 | Hunter | moves onto the Survivor's tile | *Captured* |
 | Hunter | Survivor's energy reaches 0 | *Starved* |
-| Survivor | collects **8 cores** (configurable 6–12) | *Escaped* |
+| Survivor | collects **10 cores** (configurable 6–12) | *Escaped* |
 | Survivor | lasts **160 rounds** | *Survived* |
-
-Because energy keeps draining, the Survivor cannot just hide. It has to take risks to feed.
-The Hunter has two ways to win: chase the Survivor down, or guard the cores until it starves.
-Good agents use both.
 
 ## Configuration
 
@@ -65,8 +63,22 @@ All rules live in `neon_pursuit.engine.MatchConfig`:
 ```python
 MatchConfig(
     width=21, height=15, seed=2026, wall_density=0.24,
-    active_cores=4, cores_to_win=8, max_rounds=160,
+    active_cores=4, cores_to_win=10, max_rounds=160,
     dash_cooldown=7, pounce_cooldown=9,
     start_energy=35, max_energy=45, core_energy=15, dash_energy=3,
+    pulse_radius=3, pulse_stun=3, pulse_cooldown=18, pulse_energy=4,
 )
 ```
+
+## How the defaults were chosen
+
+The rules were tuned from data, not by feel. Candidate rule sets were swept with mirror
+matches (MCTS vs MCTS, Minimax vs Minimax, Fuzzy vs Fuzzy, …):
+
+| Change | Effect |
+|---|---|
+| Original rules (fixed spawns, 8 cores) | Minimax Hunter won **100 %** against everyone |
+| More energy, more cores, weaker pounce | Minimax Hunter still ≈ 94–100 %. The cause was core camping, not raw power |
+| EMP pulse | Little change on its own. MCTS Survivors were walking into shallow traps (fixed separately) |
+| Cores spawn in the Survivor's territory | Swung to Survivor-favoured (MCTS mirror 12 % Hunter) |
+| … plus 10 cores to win | No algorithm wins every matchup; the game now leans toward the Survivor except against Minimax (see [BENCHMARKS.md](BENCHMARKS.md)) |

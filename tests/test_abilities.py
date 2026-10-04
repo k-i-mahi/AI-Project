@@ -121,3 +121,15 @@ def test_pulse_action_metadata() -> None:
     assert not Action.PULSE.is_burst
     assert Action.PULSE.direction == 0
     assert Action.PULSE.label == "EMP Pulse"
+
+
+def test_every_algorithm_waits_out_a_stun(
+    game_map: GameMap, config: MatchConfig, state: GameState
+) -> None:
+    from neon_pursuit.ai import AlgorithmId, create_agent
+
+    stunned = dataclasses.replace(_near(game_map, state), to_move=Role.HUNTER, hunter_stun=2)
+    for algorithm in AlgorithmId:
+        decision = create_agent(algorithm, Role.HUNTER, game_map, config).decide(stunned)
+        assert decision.action is Action.WAIT
+        assert "Stunned" in decision.insight.summary

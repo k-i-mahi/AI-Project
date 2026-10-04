@@ -88,6 +88,16 @@ def build_specs(
     return specs
 
 
+#: Upper bound on default worker processes: each holds its own map caches, and
+#: unbounded pools exhausted memory on a 16 GB machine during long runs.
+MAX_DEFAULT_WORKERS = 8
+
+
+def default_workers() -> int:
+    """CPU count minus one, capped at :data:`MAX_DEFAULT_WORKERS`."""
+    return max(1, min(MAX_DEFAULT_WORKERS, (os.cpu_count() or 2) - 1))
+
+
 def run_tournament(
     specs: list[MatchSpec],
     workers: int | None = None,
@@ -96,7 +106,7 @@ def run_tournament(
     """Run specs in parallel processes (or inline when ``workers == 1``)."""
     total = len(specs)
     results: list[MatchResult] = []
-    n_workers = workers if workers is not None else max(1, (os.cpu_count() or 2) - 1)
+    n_workers = workers if workers is not None else default_workers()
     if n_workers <= 1:
         for spec in specs:
             result = play_match(spec)

@@ -31,6 +31,9 @@ pytest --cov                          # tests + coverage
   logic. Create seeded RNGs with `engine.rng.make_rng(seed, salt)`.
 - **Explain decisions.** New agents should return a meaningful `Insight` so the brain
   panels can visualise them. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#adding-a-new-algorithm).
+- **Re-tune after changing fuzzy features or rules.** Run `neon-pursuit tune --workers 6`
+  and commit the updated `src/neon_pursuit/ai/fuzzy/tuned.json` together with held-out
+  validation numbers (`neon-pursuit benchmark --fuzzy-profile manual|tuned`).
 - **Benchmark changes to AI behaviour.** Include before/after numbers from
   `neon-pursuit benchmark` in the PR description.
 - Use [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `ci:`, `chore:`).

@@ -54,7 +54,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--difficulty", type=Difficulty, choices=list(Difficulty), default=Difficulty.NORMAL
     )
     play.add_argument("--seed", type=int, default=None, help="map/spawn seed (default: random)")
-    play.add_argument("--cores", type=int, default=8, help="cores the Survivor needs to win")
+    play.add_argument("--cores", type=int, default=10, help="cores the Survivor needs to win")
 
     sim = sub.add_parser("simulate", help="play one AI-vs-AI match in the terminal")
     sim.add_argument(
@@ -90,7 +90,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     bench.add_argument("--seed", type=int, default=1000, help="seed of the first game")
     bench.add_argument(
-        "--workers", type=int, default=None, help="parallel processes (default: CPUs - 1)"
+        "--workers", type=int, default=None, help="parallel processes (default: CPUs - 1, max 8)"
     )
     bench.add_argument("--out", type=Path, default=Path("results"), help="output directory")
     bench.add_argument(

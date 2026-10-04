@@ -18,14 +18,13 @@ Matches run in parallel worker processes.
 from __future__ import annotations
 
 import dataclasses
-import os
 import random
 import statistics
 from collections.abc import Callable, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 
-from ...benchmark.runner import MatchSpec, play_match
+from ...benchmark.runner import MatchSpec, default_workers, play_match
 from ...engine import MatchConfig, Role
 from ...presets import Difficulty, settings_for
 from ..base import AlgorithmId
@@ -177,7 +176,7 @@ def evolve(
     _, _, manual = _spec_for(cfg.role)
     population = [manual] + [mutate(manual, cfg.role, rng, cfg) for _ in range(cfg.population - 1)]
     history: list[GenerationStats] = []
-    workers = cfg.workers if cfg.workers is not None else max(1, (os.cpu_count() or 2) - 1)
+    workers = cfg.workers if cfg.workers is not None else default_workers()
     best_genome, best_score = manual, -1.0
     with ProcessPoolExecutor(max_workers=workers) as pool:
         for gen in range(cfg.generations):

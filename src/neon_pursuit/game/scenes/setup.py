@@ -94,7 +94,7 @@ class SetupScene(Scene):
             self.difficulty[role] = diff
             self.widgets += [sel, diff]
 
-        self.cores = Selector(pygame.Rect(600, 640, 190, 46), CORES, 1, theme.CORE)
+        self.cores = Selector(pygame.Rect(600, 640, 190, 46), CORES, 2, theme.CORE)
         self.widgets += [
             self.cores,
             Button(

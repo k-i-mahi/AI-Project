@@ -12,7 +12,7 @@ import pygame
 
 from ...ai import ALGORITHMS, AlgorithmId
 from ...benchmark.report import write_reports
-from ...benchmark.runner import MatchResult, build_specs, play_match, summarise
+from ...benchmark.runner import MatchResult, build_specs, default_workers, play_match, summarise
 from ...engine import MatchConfig
 from ...presets import Difficulty, settings_for
 from .. import theme
@@ -117,7 +117,7 @@ class BenchmarkScene(Scene):
             MatchConfig(seed=1000),
             settings_for(self.budget.value),
         )
-        workers = max(1, (os.cpu_count() or 2) - 1)
+        workers = default_workers()
         if self.pool is None:
             self.pool = ProcessPoolExecutor(max_workers=workers, mp_context=mp.get_context("spawn"))
         self.results = []

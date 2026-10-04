@@ -464,7 +464,7 @@ class MatchScene(Scene):
         theme.blit_text(surface, title, (cx, cy - 70), "display", 52, color, "center")
         reason = {
             WinReason.CAPTURED: "Captured — the Hunter closed the distance.",
-            WinReason.STARVED: "Starved — every core was too well guarded.",
+            WinReason.STARVED: "Starved — it ran out of energy before reaching food.",
             WinReason.CORES_COLLECTED: "Escaped — collected every core it needed.",
             WinReason.SURVIVED: "Survived — outlasted the round limit.",
         }[state.win_reason or WinReason.SURVIVED]

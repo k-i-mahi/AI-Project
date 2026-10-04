@@ -92,6 +92,20 @@ class Agent(ABC):
                 f"{self.role.value} agent asked to move on {state.to_move.value}'s turn"
             )
         start = time.perf_counter()
+        if self.role is Role.HUNTER and state.hunter_stun > 0:
+            # A stunned Hunter has exactly one legal move; no need to think.
+            turns = state.hunter_stun
+            return Decision(
+                action=Action.WAIT,
+                elapsed_ms=0.0,
+                insight=Insight(
+                    algorithm=self.algorithm,
+                    summary=(
+                        f"Stunned by the EMP pulse: {turns} turn{'s' if turns > 1 else ''} left."
+                    ),
+                    actions=[ActionScore(Action.WAIT, 1.0)],
+                ),
+            )
         action, insight = self.choose(state)
         elapsed = (time.perf_counter() - start) * 1000.0
         return Decision(action=action, elapsed_ms=elapsed, insight=insight)
