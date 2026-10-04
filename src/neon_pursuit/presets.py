@@ -18,20 +18,20 @@ def settings_for(difficulty: Difficulty) -> AgentSettings:
     match difficulty:
         case Difficulty.EASY:
             return AgentSettings(
-                mcts=MctsParams(iterations=80, time_limit_ms=400),
-                minimax=MinimaxParams(max_depth=3, time_limit_ms=250),
+                mcts=MctsParams(iterations=80, time_limit_ms=5_000),
+                minimax=MinimaxParams(max_depth=4, node_budget=1_500),
                 fuzzy=FuzzyParams(jitter=0.06),
             )
         case Difficulty.NORMAL:
             return AgentSettings(
-                mcts=MctsParams(iterations=250, time_limit_ms=900),
-                minimax=MinimaxParams(max_depth=6, time_limit_ms=500),
+                mcts=MctsParams(iterations=250, time_limit_ms=5_000),
+                minimax=MinimaxParams(max_depth=8, node_budget=6_000),
                 fuzzy=FuzzyParams(),
             )
         case Difficulty.HARD:
             return AgentSettings(
-                mcts=MctsParams(iterations=900, time_limit_ms=2500),
-                minimax=MinimaxParams(max_depth=10, time_limit_ms=1500),
+                mcts=MctsParams(iterations=900, time_limit_ms=10_000),
+                minimax=MinimaxParams(max_depth=12, node_budget=20_000),
                 fuzzy=FuzzyParams(jitter=0.0),
             )
     raise ValueError(difficulty)  # pragma: no cover

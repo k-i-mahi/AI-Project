@@ -43,7 +43,7 @@ def _random_states(
         if s.is_terminal:
             s = start
         out.append(s)
-        s = apply_action(game_map, config, s, rng.choice(legal_actions(game_map, s)))
+        s = apply_action(game_map, config, s, rng.choice(legal_actions(game_map, s, config)))
     return out
 
 
@@ -57,7 +57,7 @@ def test_agents_return_legal_actions(
     }
     for s in _random_states(game_map, config, state, 12):
         decision = agents[s.to_move].decide(s)
-        assert decision.action in legal_actions(game_map, s)
+        assert decision.action in legal_actions(game_map, s, config)
         assert decision.elapsed_ms >= 0
         assert decision.insight.summary
         assert decision.insight.algorithm is algorithm
@@ -67,8 +67,6 @@ def test_agents_return_legal_actions(
 def test_agents_are_deterministic(
     algorithm: AlgorithmId, game_map: GameMap, config: MatchConfig, state: GameState
 ) -> None:
-    if algorithm is AlgorithmId.MINIMAX:
-        pytest.skip("iterative deepening depth depends on wall-clock time")
     a = create_agent(algorithm, Role.SURVIVOR, game_map, config, seed=9, settings=FAST)
     b = create_agent(algorithm, Role.SURVIVOR, game_map, config, seed=9, settings=FAST)
     assert a.decide(state).action == b.decide(state).action

@@ -25,7 +25,8 @@ class Action(IntEnum):
     """Integer-encoded actions keep search trees compact.
 
     ``BURST_*`` moves two tiles in a straight line: the Survivor's *Dash* or the
-    Hunter's *Pounce*. Both are limited by a cooldown.
+    Hunter's *Pounce*. Both are limited by a cooldown. ``PULSE`` is the Survivor's
+    EMP: it stays in place and stuns a nearby Hunter for a few turns.
     """
 
     WAIT = 0
@@ -37,25 +38,32 @@ class Action(IntEnum):
     BURST_EAST = 6
     BURST_SOUTH = 7
     BURST_WEST = 8
+    PULSE = 9
 
     @property
     def is_burst(self) -> bool:
-        return self >= Action.BURST_NORTH
+        return Action.BURST_NORTH <= self <= Action.BURST_WEST
 
     @property
     def direction(self) -> int:
-        """Direction index 1..4 (N, E, S, W); 0 for WAIT."""
-        return 0 if self is Action.WAIT else ((self - 1) % 4) + 1
+        """Direction index 1..4 (N, E, S, W); 0 for WAIT and PULSE."""
+        if self is Action.WAIT or self is Action.PULSE:
+            return 0
+        return ((self - 1) % 4) + 1
 
     @property
     def label(self) -> str:
         names = {0: "Wait", 1: "North", 2: "East", 3: "South", 4: "West"}
+        if self is Action.PULSE:
+            return "EMP Pulse"
         if self.is_burst:
             return f"Burst {names[self.direction]}"
         return names[int(self)]
 
     @property
     def glyph(self) -> str:
+        if self is Action.PULSE:
+            return "*"
         arrows = {0: "·", 1: "↑", 2: "→", 3: "↓", 4: "←"}
         g = arrows[self.direction]
         return g * 2 if self.is_burst else g
@@ -89,7 +97,7 @@ class MatchConfig:
     #: Number of cores on the board at any moment.
     active_cores: int = 4
     #: Cores the Survivor needs for an outright win.
-    cores_to_win: int = 8
+    cores_to_win: int = 10
     #: Rounds the Survivor must outlast (one round = Survivor move + Hunter move).
     max_rounds: int = 160
     #: Rounds between Survivor dashes.
@@ -104,6 +112,14 @@ class MatchConfig:
     core_energy: int = 15
     #: Extra energy spent by a dash.
     dash_energy: int = 3
+    #: EMP pulse: works when the Hunter is within this path distance.
+    pulse_radius: int = 3
+    #: Hunter turns lost to a pulse.
+    pulse_stun: int = 3
+    #: Rounds between pulses.
+    pulse_cooldown: int = 18
+    #: Energy spent by a pulse.
+    pulse_energy: int = 4
 
     def __post_init__(self) -> None:
         if self.width < 9 or self.height < 7:
@@ -133,6 +149,10 @@ class GameState:
     pounce_cooldown: int
     #: Survivor energy; the Survivor collapses (Hunter wins) when it reaches 0.
     energy: int
+    #: Rounds until the Survivor may pulse again.
+    pulse_cooldown: int = 0
+    #: Hunter turns remaining in which it is stunned (may only wait).
+    hunter_stun: int = 0
     status: Status = Status.PLAYING
     win_reason: WinReason | None = None
 
@@ -154,6 +174,8 @@ class GameState:
             self.dash_cooldown,
             self.pounce_cooldown,
             self.energy,
+            self.pulse_cooldown,
+            self.hunter_stun,
         )
 
 
@@ -186,9 +208,17 @@ class CaptureEvent:
 
 
 @dataclass(slots=True, frozen=True)
+class PulseEvent:
+    cell: int
+    stunned: bool
+
+
+@dataclass(slots=True, frozen=True)
 class MatchEndEvent:
     status: Status
     reason: WinReason
 
 
-GameEvent = MoveEvent | CoreCollectedEvent | CoreSpawnedEvent | CaptureEvent | MatchEndEvent
+GameEvent = (
+    MoveEvent | CoreCollectedEvent | CoreSpawnedEvent | CaptureEvent | PulseEvent | MatchEndEvent
+)

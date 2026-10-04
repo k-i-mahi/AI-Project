@@ -115,7 +115,7 @@ def test_survivor_never_steps_into_capture(
     decision = agent.decide(s)
     assert decision.action is not Action.EAST
     assert decision.insight.fuzzy_inputs and decision.insight.fuzzy_rules
-    assert decision.action in legal_actions(game_map, s)
+    assert decision.action in legal_actions(game_map, s, config)
 
 
 def test_hunter_takes_the_capture(game_map: GameMap, config: MatchConfig, state: GameState) -> None:

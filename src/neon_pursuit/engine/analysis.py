@@ -81,12 +81,15 @@ def territory_owner_map(game_map: GameMap, hunter: int, survivor: int) -> dict[i
 
 
 def threat_distance(game_map: GameMap, state: GameState, survivor_cell: int | None = None) -> int:
-    """How many Hunter moves away the Survivor is, counting a ready pounce as two tiles."""
+    """How many Hunter moves away the Survivor is.
+
+    A ready pounce counts as two tiles; each remaining stun turn adds one move.
+    """
     cell = state.survivor if survivor_cell is None else survivor_cell
     d = game_map.distance(state.hunter, cell)
     if state.pounce_cooldown == 0 and d >= 2:
-        return d - 1
-    return d
+        d -= 1
+    return d + state.hunter_stun
 
 
 def degree(game_map: GameMap, cell: int) -> int:

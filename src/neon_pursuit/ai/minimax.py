@@ -2,9 +2,13 @@
 
 Formulated as *negamax*: the value of a position is always from the point of
 view of the side to move, so one recursive function serves both roles.
-Iterative deepening searches depth 1, 2, 3 … until the depth limit or time
-budget is reached; the best move from the previous depth is searched first,
-which greatly improves pruning. A transposition table caches exact results.
+Iterative deepening searches depth 1, 2, 3 … until the depth limit or the
+*node budget* is reached; the best move from the previous depth is searched
+first, which greatly improves pruning. A transposition table caches results.
+
+The budget counts searched nodes rather than milliseconds, so a decision is
+fully deterministic and does not depend on CPU load (important for fair,
+reproducible benchmarks). A generous wall-clock limit remains as a safety net.
 """
 
 from __future__ import annotations
@@ -21,7 +25,10 @@ from .heuristics import evaluate
 @dataclass(slots=True)
 class MinimaxParams:
     max_depth: int = 8
-    time_limit_ms: float = 900.0
+    #: Maximum nodes per decision; the deepest *completed* iteration is used.
+    node_budget: int = 6_000
+    #: Safety net only; normally the node budget ends the search first.
+    time_limit_ms: float = 5_000.0
 
 
 _EXACT, _LOWER, _UPPER = 0, 1, 2
@@ -47,6 +54,7 @@ class MinimaxAgent(Agent):
         self._nodes = 0
         self._cutoffs = 0
         self._deadline = 0.0
+        self._budget = 0
         self._table: dict[tuple[int, ...], tuple[int, float, int]] = {}
 
     def _value(self, state: GameState) -> float:
@@ -56,7 +64,9 @@ class MinimaxAgent(Agent):
 
     def _negamax(self, state: GameState, depth: int, alpha: float, beta: float) -> float:
         self._nodes += 1
-        if self._nodes & 255 == 0 and time.perf_counter() > self._deadline:
+        if self._nodes > self._budget or (
+            self._nodes & 255 == 0 and time.perf_counter() > self._deadline
+        ):
             raise _SearchTimeoutError
         if state.is_terminal or depth == 0:
             v = self._value(state)
@@ -78,7 +88,7 @@ class MinimaxAgent(Agent):
 
         alpha_orig = alpha
         best = -math.inf
-        for action in self._ordered(state, legal_actions(self.map, state)):
+        for action in self._ordered(state, legal_actions(self.map, state, self.config)):
             child = apply_action(self.map, self.config, state, action)
             score = -self._negamax(child, depth - 1, -beta, -alpha)
             best = max(best, score)
@@ -118,7 +128,8 @@ class MinimaxAgent(Agent):
         self._nodes = self._cutoffs = 0
         self._table.clear()
         self._deadline = time.perf_counter() + p.time_limit_ms / 1000.0
-        actions = legal_actions(self.map, state)
+        self._budget = p.node_budget
+        actions = legal_actions(self.map, state, self.config)
         ordered = self._ordered(state, actions)
         best_action = ordered[0]
         scores: dict[Action, float] = {}
@@ -171,7 +182,7 @@ class MinimaxAgent(Agent):
         for _ in range(6):
             if s.is_terminal:
                 break
-            actions = legal_actions(self.map, s)
+            actions = legal_actions(self.map, s, self.config)
             best_child = s
             best_val = -math.inf
             for a in actions:

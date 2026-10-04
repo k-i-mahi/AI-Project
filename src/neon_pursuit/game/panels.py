@@ -267,6 +267,7 @@ def _draw_human_help(surface: pygame.Surface, cur: _Cursor, color: theme.Color, 
         ("WASD / Arrows", "Move one tile"),
         ("Shift + direction", f"{burst} two tiles"),
         ("Space", "Wait in place"),
+        *([("E", "EMP pulse: stun a nearby Hunter")] if role is Role.SURVIVOR else []),
         ("Click a ring", "Move there"),
     ]
     for key, desc in rows:

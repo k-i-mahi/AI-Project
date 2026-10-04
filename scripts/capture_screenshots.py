@@ -23,7 +23,7 @@ from neon_pursuit.game.scenes.benchmark import BenchmarkScene
 from neon_pursuit.game.scenes.howto import HowToScene
 from neon_pursuit.game.scenes.match import MatchScene
 from neon_pursuit.game.scenes.menu import MenuScene
-from neon_pursuit.game.scenes.setup import SetupScene
+from neon_pursuit.game.scenes.setup import SetupMode, SetupScene
 from neon_pursuit.presets import Difficulty, settings_for
 
 OUT = Path(__file__).resolve().parents[1] / "docs" / "images"
@@ -69,7 +69,9 @@ def main() -> int:
     frames(app, 240)
     save(app, "menu.png")
 
-    show(app, SetupScene(app))
+    setup_scene = SetupScene(app, SetupMode.DUEL)
+    setup_scene._set_seed(2026)
+    show(app, setup_scene)
     frames(app, 10)
     save(app, "setup.png")
 

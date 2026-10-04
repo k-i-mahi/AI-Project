@@ -14,7 +14,7 @@ core, so hiding forever is not an option: it has to take risks to feed.
 
 from __future__ import annotations
 
-from .board import GameMap
+from .board import DIR_DX, DIR_DY, GameMap
 from .types import (
     Action,
     CaptureEvent,
@@ -25,6 +25,7 @@ from .types import (
     MatchConfig,
     MatchEndEvent,
     MoveEvent,
+    PulseEvent,
     Role,
     Status,
     WinReason,
@@ -65,7 +66,13 @@ def _refill_cores(
     cursor: int,
     events: list[GameEvent] | None = None,
 ) -> int:
-    """Fill empty core slots in place from the deterministic spawn sequence."""
+    """Fill empty core slots in place from the deterministic spawn sequence.
+
+    A new core prefers the Survivor's *territory* (cells it reaches strictly
+    before the Hunter). This stops a Hunter from winning by simply camping
+    between the Survivor and the food; if the Survivor has no territory left,
+    any otherwise valid cell is used.
+    """
     seq = game_map.core_sequence
     n = len(seq)
     if n == 0:
@@ -73,29 +80,57 @@ def _refill_cores(
     for slot, value in enumerate(cores):
         if value != -1:
             continue
-        for _ in range(n):
-            cell = seq[cursor % n]
-            cursor += 1
-            if cell in (hunter, survivor) or cell in cores:
-                continue
-            if game_map.distance(survivor, cell) < CORE_SPAWN_MIN_DISTANCE:
-                continue
-            cores[slot] = cell
-            if events is not None:
-                events.append(CoreSpawnedEvent(cell))
-            break
+        for require_territory in (True, False):
+            placed = False
+            for offset in range(n):
+                cell = seq[(cursor + offset) % n]
+                if cell in (hunter, survivor) or cell in cores:
+                    continue
+                ds = game_map.distance(survivor, cell)
+                dh = game_map.distance(hunter, cell)
+                if ds < CORE_SPAWN_MIN_DISTANCE or dh < CORE_SPAWN_MIN_DISTANCE:
+                    continue  # never on top of either player
+                if require_territory and ds >= dh:
+                    continue
+                cores[slot] = cell
+                cursor += offset + 1
+                placed = True
+                if events is not None:
+                    events.append(CoreSpawnedEvent(cell))
+                break
+            if placed:
+                break
     return cursor
 
 
+def can_pulse(game_map: GameMap, config: MatchConfig, state: GameState) -> bool:
+    """Whether the Survivor's EMP pulse is available and the Hunter is in range."""
+    return (
+        state.pulse_cooldown == 0
+        and state.energy > config.pulse_energy
+        and state.hunter_stun == 0
+        and game_map.distance(state.survivor, state.hunter) <= config.pulse_radius
+    )
+
+
 def path_of(game_map: GameMap, state: GameState, role: Role, action: Action) -> list[int] | None:
-    """Cells visited (start included) when ``role`` performs ``action``; None if blocked."""
+    """Cells visited (start included) when ``role`` performs ``action``; None if blocked.
+
+    Pulse availability (range, energy) is checked by :func:`is_legal`, which knows the config.
+    """
     start = state.hunter if role is Role.HUNTER else state.survivor
     if action == Action.WAIT:
         return [start]
+    if action == Action.PULSE:
+        return [start] if role is Role.SURVIVOR else None
+    if role is Role.HUNTER and state.hunter_stun > 0:
+        return None  # a stunned Hunter may only wait
     d = ((action - 1) % 4) + 1
     step = game_map.step
     mid = step[start * 5 + d]
     if mid < 0:
+        if role is Role.SURVIVOR and action.is_burst:
+            return _blink_path(game_map, state, start, d)
         return None
     if action < Action.BURST_NORTH:
         return [start, mid]
@@ -112,9 +147,25 @@ def path_of(game_map: GameMap, state: GameState, role: Role, action: Action) -> 
     return [start, mid, end]
 
 
-def is_legal(game_map: GameMap, state: GameState, action: Action) -> bool:
+def _blink_path(game_map: GameMap, state: GameState, start: int, d: int) -> list[int] | None:
+    """Blink Dash: the Survivor leaps over a single wall tile onto open floor beyond it."""
+    if state.dash_cooldown > 0 or state.energy <= DASH_MIN_ENERGY:
+        return None
+    x = start % game_map.width + 2 * DIR_DX[d]
+    y = start // game_map.width + 2 * DIR_DY[d]
+    if not (0 < x < game_map.width - 1 and 0 < y < game_map.height - 1):
+        return None
+    end = y * game_map.width + x
+    if game_map.is_wall(end):
+        return None
+    return [start, end]
+
+
+def is_legal(game_map: GameMap, state: GameState, action: Action, config: MatchConfig) -> bool:
     if state.status is not Status.PLAYING:
         return False
+    if action == Action.PULSE:
+        return state.to_move is Role.SURVIVOR and can_pulse(game_map, config, state)
     path = path_of(game_map, state, state.to_move, action)
     if path is None:
         return False
@@ -122,10 +173,10 @@ def is_legal(game_map: GameMap, state: GameState, action: Action) -> bool:
     return not (state.to_move is Role.SURVIVOR and state.hunter in path[1:])
 
 
-def legal_actions(game_map: GameMap, state: GameState) -> list[Action]:
+def legal_actions(game_map: GameMap, state: GameState, config: MatchConfig) -> list[Action]:
     if state.status is not Status.PLAYING:
         return []
-    return [a for a in Action if is_legal(game_map, state, a)]
+    return [a for a in Action if is_legal(game_map, state, a, config)]
 
 
 def apply_action(
@@ -143,6 +194,10 @@ def apply_action(
     if state.status is not Status.PLAYING:
         raise IllegalActionError("Match is already over")
     role = state.to_move
+    if action == Action.PULSE:
+        if not is_legal(game_map, state, action, config):
+            raise IllegalActionError(f"Illegal action PULSE for {role.value}")
+        return _apply_pulse(config, state, events)
     path = path_of(game_map, state, role, action)
     if path is None or (role is Role.SURVIVOR and state.hunter in path[1:]):
         raise IllegalActionError(f"Illegal action {Action(action).name} for {role.value}")
@@ -151,7 +206,7 @@ def apply_action(
         events.append(MoveEvent(role, start, end, Action(action)))
 
     if role is Role.SURVIVOR:
-        return _apply_survivor(game_map, config, state, path, events)
+        return _apply_survivor(game_map, config, state, path, Action(action).is_burst, events)
 
     if state.survivor in path:
         if events is not None:
@@ -168,6 +223,8 @@ def apply_action(
             dash_cooldown=state.dash_cooldown,
             pounce_cooldown=state.pounce_cooldown,
             energy=state.energy,
+            pulse_cooldown=state.pulse_cooldown,
+            hunter_stun=state.hunter_stun,
             status=Status.HUNTER_WIN,
             win_reason=WinReason.CAPTURED,
         )
@@ -193,6 +250,8 @@ def apply_action(
         dash_cooldown=max(0, state.dash_cooldown - 1),
         pounce_cooldown=max(0, pounce - 1),
         energy=max(0, energy),
+        pulse_cooldown=max(0, state.pulse_cooldown - 1),
+        hunter_stun=max(0, state.hunter_stun - 1),
         status=status,
         win_reason=reason,
     )
@@ -203,10 +262,10 @@ def _apply_survivor(
     config: MatchConfig,
     state: GameState,
     path: list[int],
+    dashed: bool,
     events: list[GameEvent] | None,
 ) -> GameState:
     end = path[-1]
-    dashed = len(path) == 3
     energy = state.energy - (config.dash_energy if dashed else 0)
     collected = state.cores_collected
     cores = state.cores
@@ -242,6 +301,30 @@ def _apply_survivor(
         dash_cooldown=config.dash_cooldown if dashed else state.dash_cooldown,
         pounce_cooldown=state.pounce_cooldown,
         energy=energy,
+        pulse_cooldown=state.pulse_cooldown,
+        hunter_stun=state.hunter_stun,
         status=status,
         win_reason=reason,
+    )
+
+
+def _apply_pulse(
+    config: MatchConfig, state: GameState, events: list[GameEvent] | None
+) -> GameState:
+    """Survivor stays put, spends energy and stuns the Hunter for ``pulse_stun`` turns."""
+    if events is not None:
+        events.append(PulseEvent(state.survivor, True))
+    return GameState(
+        hunter=state.hunter,
+        survivor=state.survivor,
+        cores=state.cores,
+        cores_collected=state.cores_collected,
+        core_cursor=state.core_cursor,
+        round=state.round,
+        to_move=Role.HUNTER,
+        dash_cooldown=state.dash_cooldown,
+        pounce_cooldown=state.pounce_cooldown,
+        energy=state.energy - config.pulse_energy,
+        pulse_cooldown=config.pulse_cooldown,
+        hunter_stun=config.pulse_stun,
     )

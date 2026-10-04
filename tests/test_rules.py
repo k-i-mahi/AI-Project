@@ -36,8 +36,8 @@ def test_initial_state(state: GameState, game_map: GameMap, config: MatchConfig)
     assert state.hunter == game_map.hunter_spawn
 
 
-def test_wait_is_always_legal(state: GameState, game_map: GameMap) -> None:
-    assert Action.WAIT in legal_actions(game_map, state)
+def test_wait_is_always_legal(state: GameState, game_map: GameMap, config: MatchConfig) -> None:
+    assert Action.WAIT in legal_actions(game_map, state, config)
 
 
 def test_turns_alternate_and_round_advances(
@@ -51,7 +51,7 @@ def test_turns_alternate_and_round_advances(
 
 
 def test_illegal_actions_raise(state: GameState, game_map: GameMap, config: MatchConfig) -> None:
-    illegal = [a for a in Action if not is_legal(game_map, state, a)]
+    illegal = [a for a in Action if not is_legal(game_map, state, a, config)]
     assert illegal, "spawn should be next to the border wall"
     with pytest.raises(IllegalActionError):
         apply_action(game_map, config, state, illegal[0])
@@ -61,12 +61,14 @@ def _scenario(game_map: GameMap, state: GameState, **changes: Any) -> GameState:
     return dataclasses.replace(state, **changes)
 
 
-def test_survivor_cannot_step_onto_hunter(state: GameState, game_map: GameMap) -> None:
+def test_survivor_cannot_step_onto_hunter(
+    state: GameState, game_map: GameMap, config: MatchConfig
+) -> None:
     start = open_cell_with_free_line(game_map)
     east = game_map.step[start * 5 + 2]
     s = _scenario(game_map, state, survivor=start, hunter=east)
-    assert not is_legal(game_map, s, Action.EAST)
-    assert not is_legal(game_map, s, Action.BURST_EAST)
+    assert not is_legal(game_map, s, Action.EAST, config)
+    assert not is_legal(game_map, s, Action.BURST_EAST, config)
 
 
 def test_hunter_capture(state: GameState, game_map: GameMap, config: MatchConfig) -> None:
@@ -99,7 +101,7 @@ def test_pounce_respects_cooldown(state: GameState, game_map: GameMap, config: M
     after = apply_action(game_map, config, s, Action.BURST_EAST)
     assert after.pounce_cooldown == config.pounce_cooldown - 1
     blocked = _scenario(game_map, after, to_move=Role.HUNTER)
-    assert not is_legal(game_map, blocked, Action.BURST_EAST)
+    assert not is_legal(game_map, blocked, Action.BURST_EAST, config)
 
 
 def test_dash_costs_energy_and_cooldown(
@@ -112,7 +114,7 @@ def test_dash_costs_energy_and_cooldown(
     assert after.energy == state.energy - config.dash_energy
     assert after.dash_cooldown == config.dash_cooldown
     low = _scenario(game_map, s, energy=3)
-    assert not is_legal(game_map, low, Action.BURST_EAST)
+    assert not is_legal(game_map, low, Action.BURST_EAST, config)
 
 
 def test_core_collection_refills_energy_and_respawns(
@@ -169,7 +171,7 @@ def test_win_by_cores(state: GameState, game_map: GameMap, config: MatchConfig) 
     assert after.status is Status.SURVIVOR_WIN
     assert after.win_reason is WinReason.CORES_COLLECTED
     assert after.is_terminal
-    assert legal_actions(game_map, after) == []
+    assert legal_actions(game_map, after, config) == []
     with pytest.raises(IllegalActionError):
         apply_action(game_map, config, after, Action.WAIT)
 

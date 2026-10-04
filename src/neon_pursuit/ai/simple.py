@@ -22,15 +22,13 @@ class GreedyAgent(Agent):
         self.rng = make_rng(seed, 303)
 
     def choose(self, state: GameState) -> tuple[Action, Insight]:
-        actions = legal_actions(self.map, state)
+        actions = legal_actions(self.map, state, self.config)
         if self.role is Role.HUNTER:
             action = greedy_hunter_action(self.map, state, actions, self.rng)
             d = self.map.distance(state.hunter, state.survivor)
             summary = f"{action.label}: shortest path toward the Survivor ({d} tiles away)"
         else:
-            action = greedy_survivor_action(
-                self.map, state, actions, self.rng, self.config.max_energy
-            )
+            action = greedy_survivor_action(self.map, self.config, state, actions, self.rng)
             summary = f"{action.label}: maximise distance, detour for cores when safe"
         path = path_of(self.map, state, self.role, action) or []
         return action, Insight(
@@ -52,7 +50,7 @@ class RandomAgent(Agent):
         self.rng = make_rng(seed, 404)
 
     def choose(self, state: GameState) -> tuple[Action, Insight]:
-        actions = legal_actions(self.map, state)
+        actions = legal_actions(self.map, state, self.config)
         action = self.rng.choice(actions)
         share = 1.0 / len(actions)
         return action, Insight(

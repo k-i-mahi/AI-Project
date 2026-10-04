@@ -10,7 +10,7 @@ would give, which is exactly the appeal of fuzzy control.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import ClassVar
+from functools import cache
 
 from ...engine import (
     Action,
@@ -22,6 +22,7 @@ from ...engine import (
     path_of,
     safe_core_distance,
     territory_fraction,
+    threat_distance,
 )
 from ...engine.analysis import CONTESTED_CORE_PENALTY
 from ...engine.rng import make_rng
@@ -33,7 +34,18 @@ from ..base import (
     FuzzyRuleFiring,
     Insight,
 )
-from .system import FuzzySystem, LinguisticVariable, Trapezoid, triangle, when
+from .genome import (
+    HUNTER_RULES,
+    HUNTER_VARIABLES,
+    MANUAL_HUNTER,
+    MANUAL_SURVIVOR,
+    SURVIVOR_RULES,
+    SURVIVOR_VARIABLES,
+    FuzzyGenome,
+    build_system,
+    tuned_genomes,
+)
+from .system import FuzzySystem
 
 
 @dataclass(slots=True)
@@ -42,142 +54,44 @@ class FuzzyParams:
     jitter: float = 0.01
     #: Penalty for spending the burst ability when it is not needed.
     burst_penalty: float = 0.04
+    #: ``"tuned"`` uses the GA-optimised genomes when available, ``"manual"`` the hand-made ones.
+    profile: str = "tuned"
+    #: Explicit genomes (used by the genetic algorithm); override ``profile``.
+    survivor_genome: FuzzyGenome | None = None
+    hunter_genome: FuzzyGenome | None = None
 
 
-DESIRABILITY = LinguisticVariable(
-    "desirability",
-    0.0,
-    1.0,
-    {
-        "avoid": Trapezoid(0.0, 0.0, 0.1, 0.25),
-        "poor": triangle(0.1, 0.3, 0.5),
-        "fair": triangle(0.35, 0.5, 0.65),
-        "good": triangle(0.5, 0.7, 0.9),
-        "excellent": Trapezoid(0.75, 0.9, 1.0, 1.0),
-    },
-)
-
-# Every input below uses a *fuzzy partition* (adjacent terms overlap and sum to 1).
-# With Mamdani + centroid, a lone active term always defuzzifies to its own
-# centre; overlapping terms make the output interpolate smoothly, so moving one
-# tile closer to a core is always visibly "a bit better".
-SPACE_TERMS = {
-    "cornered": Trapezoid(0.0, 0.0, 0.03, 0.12),
-    "limited": triangle(0.03, 0.12, 0.3),
-    "open": Trapezoid(0.12, 0.3, 0.6, 0.6),
-}
+def genome_for(role: Role, params: FuzzyParams | None = None) -> FuzzyGenome:
+    p = params or FuzzyParams()
+    explicit = p.survivor_genome if role is Role.SURVIVOR else p.hunter_genome
+    if explicit is not None:
+        return explicit
+    if p.profile == "tuned" and role.value in tuned_genomes():
+        return tuned_genomes()[role.value]
+    return MANUAL_SURVIVOR if role is Role.SURVIVOR else MANUAL_HUNTER
 
 
-def survivor_system() -> FuzzySystem:
+@cache
+def _system(role: Role, genome: FuzzyGenome) -> FuzzySystem:
+    if role is Role.SURVIVOR:
+        return build_system(SURVIVOR_VARIABLES, SURVIVOR_RULES, genome)
+    return build_system(HUNTER_VARIABLES, HUNTER_RULES, genome)
+
+
+def survivor_system(genome: FuzzyGenome | None = None) -> FuzzySystem:
     """Rule base for the Survivor: stay out of reach, keep room to run, feed when hungry."""
-    danger = LinguisticVariable(
-        "danger",
-        0,
-        12,
-        {
-            "critical": Trapezoid(0, 0, 1, 2),
-            "near": triangle(1, 2, 4),
-            "safe": Trapezoid(2, 4, 12, 12),
-        },
-        unit="moves",
-    )
-    core = LinguisticVariable(
-        "core",
-        0,
-        30,
-        {
-            "close": Trapezoid(0, 0, 0, 10),
-            "mid": triangle(0, 10, 30),
-            "far": Trapezoid(10, 30, 30, 30),
-        },
-        unit="tiles",
-    )
-    space = LinguisticVariable("space", 0, 0.6, SPACE_TERMS, unit="of map")
-    energy = LinguisticVariable(
-        "energy",
-        0,
-        1,
-        {
-            "low": Trapezoid(0, 0, 0.15, 0.5),
-            "medium": triangle(0.15, 0.5, 0.85),
-            "high": Trapezoid(0.5, 0.85, 1, 1),
-        },
-        unit="of max",
-    )
-    rules = [
-        when(("danger", "critical"), then="avoid", rule_id="S1"),
-        when(("danger", "near"), ("space", "cornered"), then="avoid", rule_id="S2"),
-        when(("danger", "near"), ("core", "close"), then="good", rule_id="S3"),
-        when(("danger", "near"), ("core", "mid"), then="fair", rule_id="S4"),
-        when(("danger", "near"), ("core", "far"), then="poor", rule_id="S5"),
-        when(("danger", "near"), ("space", "open"), then="fair", rule_id="S6"),
-        when(("danger", "safe"), ("core", "close"), then="excellent", rule_id="S7"),
-        when(("danger", "safe"), ("core", "mid"), then="good", rule_id="S8"),
-        when(("danger", "safe"), ("core", "far"), then="fair", rule_id="S9"),
-        when(("danger", "safe"), ("space", "cornered"), then="poor", rule_id="S10"),
-        when(("energy", "low"), ("core", "close"), then="excellent", rule_id="S11"),
-        when(("energy", "low"), ("core", "mid"), then="fair", rule_id="S12"),
-        when(("energy", "low"), ("core", "far"), then="avoid", rule_id="S13"),
-    ]
-    return FuzzySystem([danger, core, space, energy], DESIRABILITY, rules)
+    return _system(Role.SURVIVOR, genome or genome_for(Role.SURVIVOR))
 
 
-def hunter_system() -> FuzzySystem:
+def hunter_system(genome: FuzzyGenome | None = None) -> FuzzySystem:
     """Rule base for the Hunter: close in, shrink the prey's space, guard its food."""
-    gap = LinguisticVariable(
-        "gap",
-        0,
-        24,
-        {
-            "striking": Trapezoid(0, 0, 0, 3),
-            "close": triangle(0, 3, 10),
-            "distant": Trapezoid(3, 10, 24, 24),
-        },
-        unit="moves",
-    )
-    squeeze = LinguisticVariable("squeeze", 0, 0.6, SPACE_TERMS, unit="prey space")
-    intercept = LinguisticVariable(
-        "intercept",
-        -12,
-        12,
-        {
-            "ahead": Trapezoid(-12, -12, -6, 0),
-            "level": triangle(-6, 0, 6),
-            "behind": Trapezoid(0, 6, 12, 12),
-        },
-        unit="tiles",
-    )
-    hunger = LinguisticVariable(
-        "prey_energy",
-        0,
-        1,
-        {
-            "starving": Trapezoid(0, 0, 0.2, 0.5),
-            "fed": Trapezoid(0.2, 0.5, 1, 1),
-        },
-        unit="of max",
-    )
-    rules = [
-        when(("gap", "striking"), then="excellent", rule_id="H1"),
-        when(("gap", "close"), ("squeeze", "cornered"), then="excellent", rule_id="H2"),
-        when(("gap", "close"), ("squeeze", "limited"), then="good", rule_id="H3"),
-        when(("gap", "close"), ("squeeze", "open"), then="fair", rule_id="H4"),
-        when(("gap", "distant"), then="poor", rule_id="H5"),
-        when(("intercept", "ahead"), then="good", rule_id="H6"),
-        when(("intercept", "behind"), ("gap", "distant"), then="avoid", rule_id="H7"),
-        when(("squeeze", "cornered"), then="good", rule_id="H8"),
-        when(("prey_energy", "starving"), ("intercept", "ahead"), then="excellent", rule_id="H9"),
-        when(("prey_energy", "fed"), ("gap", "close"), then="good", rule_id="H10"),
-        when(("squeeze", "open"), ("gap", "distant"), then="poor", rule_id="H11"),
-    ]
-    return FuzzySystem([gap, squeeze, intercept, hunger], DESIRABILITY, rules)
+    return _system(Role.HUNTER, genome or genome_for(Role.HUNTER))
 
 
 class FuzzyAgent(Agent):
     """Scores every legal action with a fuzzy rule base and plays the best one."""
 
     algorithm = AlgorithmId.FUZZY
-    _systems: ClassVar[dict[Role, FuzzySystem]] = {}
 
     def __init__(
         self,
@@ -190,9 +104,8 @@ class FuzzyAgent(Agent):
         super().__init__(role, game_map, config, seed)
         self.params = params or FuzzyParams()
         self.rng = make_rng(seed, 202)
-        if role not in self._systems:
-            self._systems[role] = survivor_system() if role is Role.SURVIVOR else hunter_system()
-        self.system = self._systems[role]
+        self.genome = genome_for(role, self.params)
+        self.system = _system(role, self.genome)
 
     # --- Feature extraction ---------------------------------------------------
 
@@ -202,18 +115,23 @@ class FuzzyAgent(Agent):
         if path is None:
             raise ValueError(f"Illegal action {action.name}")
         return (
-            self._survivor_features(state, path)
+            self._survivor_features(state, path, action)
             if self.role is Role.SURVIVOR
             else self._hunter_features(state, path)
         )
 
-    def _survivor_features(self, state: GameState, path: list[int]) -> dict[str, float]:
+    def _survivor_features(
+        self, state: GameState, path: list[int], action: Action
+    ) -> dict[str, float]:
         gm, cfg = self.map, self.config
         cell = path[-1]
         d = gm.distance(state.hunter, cell)
         danger = d - 1 if state.pounce_cooldown == 0 and d >= 2 else d
+        pulse = action is Action.PULSE
+        danger += cfg.pulse_stun if pulse else state.hunter_stun
         grabbed = sum(1 for c in path[1:] if c in state.cores)
-        energy = state.energy - (cfg.dash_energy if len(path) == 3 else 0)
+        energy = state.energy - (cfg.dash_energy if action.is_burst else 0)
+        energy -= cfg.pulse_energy if pulse else 0
         energy = min(cfg.max_energy, energy + grabbed * cfg.core_energy)
         remaining = [c for c in state.cores if c >= 0 and c not in path]
         # Guarded cores look farther away — unless the Survivor is desperate.
@@ -258,7 +176,7 @@ class FuzzyAgent(Agent):
     # --- Decision -------------------------------------------------------------
 
     def choose(self, state: GameState) -> tuple[Action, Insight]:
-        actions = legal_actions(self.map, state)
+        actions = legal_actions(self.map, state, self.config)
         scored: list[tuple[float, float, Action, dict[str, float]]] = []
         for action in actions:
             feats = self.features(state, action)
@@ -267,6 +185,8 @@ class FuzzyAgent(Agent):
             urgent = feats.get("danger", 10.0) <= 2 or feats.get("gap", 10.0) <= 0
             if action.is_burst and not urgent:
                 crisp -= self.params.burst_penalty
+            if action is Action.PULSE and threat_distance(self.map, state) > 2:
+                crisp -= 3 * self.params.burst_penalty  # save the EMP for real danger
             noisy = crisp + self.rng.uniform(0.0, self.params.jitter)
             scored.append((noisy, crisp, action, feats))
 

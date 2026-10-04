@@ -12,12 +12,12 @@ from ... import __version__
 from ...ai import AlgorithmId, create_agent
 from ...engine import GameEvent, MatchConfig, Role, apply_action, generate_map, initial_state
 from ...engine.rng import derive_seed
-from ...presets import Difficulty, settings_for
 from .. import theme
-from ..controller import MatchSetup, Turn
+from ..controller import Turn
 from ..render import BoardView, Overlays
 from ..widgets import Button
 from .base import Scene
+from .setup import SetupMode, SetupScene
 
 if TYPE_CHECKING:
     from ..app import App
@@ -31,10 +31,15 @@ class MenuScene(Scene):
         x, w, h, gap = 90, 440, 64, 14
         y = 330
         entries: list[tuple[str, str, Callable[[], None], theme.Color]] = [
-            ("Watch AI Duel", "MCTS Hunter vs Fuzzy Survivor", self.watch, theme.ACCENT),
-            ("Play as Survivor", "Outsmart an MCTS Hunter", self.play_survivor, theme.SURVIVOR),
-            ("Play as Hunter", "Corner a Fuzzy-logic Survivor", self.play_hunter, theme.HUNTER),
-            ("Custom Match", "Pick algorithms, difficulty and map", self.custom, theme.ACCENT),
+            ("Watch AI Duel", "Pick two algorithms and watch them fight", self.watch, theme.ACCENT),
+            (
+                "Play as Survivor",
+                "Choose the AI that hunts you",
+                self.play_survivor,
+                theme.SURVIVOR,
+            ),
+            ("Play as Hunter", "Choose the AI you will chase", self.play_hunter, theme.HUNTER),
+            ("Custom Match", "Any mix of AI and human players", self.custom, theme.ACCENT),
             ("Benchmark Lab", "Run AI-vs-AI tournaments", self.benchmark, theme.CORE),
             ("How It Works", "Rules and algorithms explained", self.howto, theme.TEXT_DIM),
         ]
@@ -55,26 +60,20 @@ class MenuScene(Scene):
 
     # --- Navigation -----------------------------------------------------------
 
-    def _launch(self, hunter: AlgorithmId | None, survivor: AlgorithmId | None) -> None:
-        from .match import MatchScene
-
-        settings = settings_for(Difficulty.NORMAL)
-        setup = MatchSetup(hunter, survivor, MatchConfig(), settings, settings)
-        self.app.push(MatchScene(self.app, setup))
+    def _setup(self, mode: SetupMode) -> None:
+        self.app.push(SetupScene(self.app, mode))
 
     def watch(self) -> None:
-        self._launch(AlgorithmId.MCTS, AlgorithmId.FUZZY)
+        self._setup(SetupMode.DUEL)
 
     def play_survivor(self) -> None:
-        self._launch(AlgorithmId.MCTS, None)
+        self._setup(SetupMode.PLAY_SURVIVOR)
 
     def play_hunter(self) -> None:
-        self._launch(None, AlgorithmId.FUZZY)
+        self._setup(SetupMode.PLAY_HUNTER)
 
     def custom(self) -> None:
-        from .setup import SetupScene
-
-        self.app.push(SetupScene(self.app))
+        self._setup(SetupMode.CUSTOM)
 
     def benchmark(self) -> None:
         from .benchmark import BenchmarkScene

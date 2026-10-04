@@ -85,13 +85,13 @@ def bfs(walls: bytearray | bytes, width: int, height: int, source: int) -> list[
 
 @lru_cache(maxsize=32)
 def generate_map(config: MatchConfig) -> GameMap:
-    """Build a left-right mirrored arena from ``config.seed``.
+    """Build a left-right mirrored arena with random spawns from ``config.seed``.
 
     1. Scatter short wall segments over the left half.
-    2. Mirror them onto the right half so neither side is favoured.
-    3. Clear 3x3 pockets around both spawns.
-    4. Seal floor regions that cannot reach the spawns (connectivity repair).
-    5. Precompute distance/step tables and the core spawn sequence.
+    2. Mirror them onto the right half so the layout is balanced.
+    3. Keep only the largest connected floor region (connectivity repair).
+    4. Precompute distance/step tables.
+    5. Pick random spawns (see :func:`choose_spawns`) and the core spawn sequence.
     """
     width, height = config.width, config.height
     size = width * height
@@ -138,21 +138,7 @@ def generate_map(config: MatchConfig) -> GameMap:
         for x in range(half):
             walls[y * width + (width - 1 - x)] = walls[y * width + x]
 
-    mid_y = height // 2
-    hunter_spawn = mid_y * width + 1
-    survivor_spawn = mid_y * width + (width - 2)
-    for spawn in (hunter_spawn, survivor_spawn):
-        sx, sy = spawn % width, spawn // width
-        for dy in (-1, 0, 1):
-            for dx in (-1, 0, 1):
-                x, y = sx + dx, sy + dy
-                if 0 < x < width - 1 and 0 < y < height - 1:
-                    walls[y * width + x] = 0
-
-    reach = bfs(walls, width, height, hunter_spawn)
-    for c in range(size):
-        if not walls[c] and reach[c] == UNREACHABLE:
-            walls[c] = 1
+    _keep_largest_region(walls, width, height)
 
     floor = tuple(c for c in range(size) if not walls[c])
 
@@ -168,6 +154,8 @@ def generate_map(config: MatchConfig) -> GameMap:
             n = (y + DIR_DY[d]) * width + (x + DIR_DX[d])
             if not walls[n]:
                 step[c * 5 + d] = n
+
+    hunter_spawn, survivor_spawn = choose_spawns(floor, dist, step, width, height, config.seed)
 
     core_rng = make_rng(config.seed, 2)
     candidates = [
@@ -192,3 +180,52 @@ def generate_map(config: MatchConfig) -> GameMap:
         survivor_spawn=survivor_spawn,
         core_sequence=tuple(sequence),
     )
+
+
+def _keep_largest_region(walls: bytearray, width: int, height: int) -> None:
+    """Seal every floor region except the largest one, so all floor is mutually reachable."""
+    size = width * height
+    seen = [False] * size
+    best: list[int] = []
+    for start in range(size):
+        if walls[start] or seen[start]:
+            continue
+        dist = bfs(walls, width, height, start)
+        region = [c for c in range(size) if dist[c] != UNREACHABLE]
+        for c in region:
+            seen[c] = True
+        if len(region) > len(best):
+            best = region
+    keep = set(best)
+    for c in range(size):
+        if not walls[c] and c not in keep:
+            walls[c] = 1
+
+
+def choose_spawns(
+    floor: tuple[int, ...],
+    dist: list[int],
+    step: list[int],
+    width: int,
+    height: int,
+    seed: int,
+) -> tuple[int, int]:
+    """Pick random, fair starting cells for ``(hunter, survivor)``.
+
+    Both spawns have at least two open neighbours (never a dead end) and are at
+    least ``max(8, (width + height) // 3)`` path steps apart, so neither side
+    starts within striking range. The choice is derived from the seed, so a
+    rematch on the same seed reproduces it exactly.
+    """
+    size = width * height
+    rng = make_rng(seed, 3)
+    open_cells = [c for c in floor if sum(1 for d in range(1, 5) if step[c * 5 + d] >= 0) >= 2]
+    pool = open_cells or list(floor)
+    survivor = rng.choice(pool)
+    min_sep = max(8, (width + height) // 3)
+    far = [c for c in pool if min_sep <= dist[survivor * size + c] != UNREACHABLE]
+    if far:
+        hunter = rng.choice(far)
+    else:  # tiny maps: fall back to the farthest reachable cell
+        hunter = max(pool, key=lambda c: dist[survivor * size + c] % UNREACHABLE)
+    return hunter, survivor

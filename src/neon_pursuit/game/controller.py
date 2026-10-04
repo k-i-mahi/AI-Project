@@ -120,7 +120,7 @@ class MatchController:
     # --- Human turns ----------------------------------------------------------
 
     def can_play(self, action: Action) -> bool:
-        return self.is_human_turn() and is_legal(self.map, self.state, action)
+        return self.is_human_turn() and is_legal(self.map, self.state, action, self.config)
 
     def play_human(self, action: Action) -> Turn | None:
         if not self.can_play(action):

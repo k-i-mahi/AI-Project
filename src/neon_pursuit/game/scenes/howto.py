@@ -26,6 +26,11 @@ RULES = [
         "then go on cooldown. A dash costs 3 energy.",
     ),
     (
+        "Abilities",
+        "Blink Dash can leap over one wall tile. EMP pulse (Hunter within 3 tiles) "
+        "stuns the Hunter for 3 turns; 18-round cooldown, costs 4 energy.",
+    ),
+    (
         "Energy",
         "The Survivor loses 1 energy per round. Each core restores 15. At 0 energy it collapses.",
     ),
@@ -40,8 +45,8 @@ RULES = [
     ),
     (
         "Fairness",
-        "Maps are procedurally generated, mirrored left/right and seeded: "
-        "every match is reproducible.",
+        "Maps are generated from a seed with mirrored walls and random, well-separated "
+        "spawns. R replays the same map; M rolls a new one.",
     ),
 ]
 
@@ -49,6 +54,7 @@ CONTROLS = [
     ("WASD / Arrows", "Move (when you control a side)"),
     ("Shift + direction", "Dash / Pounce two tiles"),
     ("Space", "Wait in place"),
+    ("E", "EMP pulse (Survivor)"),
     ("P  /  N", "Pause  /  step one move"),
     ("L  /  T  /  H", "Plans / territory / hunter-reach overlays"),
 ]

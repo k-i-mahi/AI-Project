@@ -37,13 +37,30 @@ def test_border_is_solid(game_map: GameMap) -> None:
         assert game_map.is_wall(game_map.cell(w - 1, y))
 
 
-def test_spawns_are_open_and_symmetric(game_map: GameMap) -> None:
-    assert not game_map.is_wall(game_map.hunter_spawn)
-    assert not game_map.is_wall(game_map.survivor_spawn)
-    hx, hy = game_map.xy(game_map.hunter_spawn)
-    sx, sy = game_map.xy(game_map.survivor_spawn)
-    assert hy == sy
-    assert hx == game_map.width - 1 - sx
+@pytest.mark.parametrize("seed", range(25))
+def test_spawns_are_random_but_fair(seed: int) -> None:
+    m = generate_map(MatchConfig(seed=seed))
+    assert m.hunter_spawn != m.survivor_spawn
+    for spawn in (m.hunter_spawn, m.survivor_spawn):
+        assert not m.is_wall(spawn)
+        assert len(m.neighbours(spawn)) >= 2  # never starts in a dead end
+    min_sep = max(8, (m.width + m.height) // 3)
+    assert m.distance(m.hunter_spawn, m.survivor_spawn) >= min_sep
+
+
+def test_spawns_vary_with_seed_and_repeat_for_same_seed() -> None:
+    spawns = {
+        (
+            generate_map(MatchConfig(seed=s)).hunter_spawn,
+            generate_map(MatchConfig(seed=s)).survivor_spawn,
+        )
+        for s in range(10)
+    }
+    assert len(spawns) >= 8
+    a = generate_map(MatchConfig(seed=77))
+    generate_map.cache_clear()
+    b = generate_map(MatchConfig(seed=77))
+    assert (a.hunter_spawn, a.survivor_spawn) == (b.hunter_spawn, b.survivor_spawn)
 
 
 def test_distance_table_matches_bfs(game_map: GameMap) -> None:

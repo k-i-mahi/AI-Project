@@ -15,6 +15,7 @@ from ...engine import (
     CoreCollectedEvent,
     MatchEndEvent,
     MoveEvent,
+    PulseEvent,
     Role,
     Status,
     WinReason,
@@ -195,6 +196,9 @@ class MatchScene(Scene):
         if event.key == pygame.K_SPACE:
             self._play_human(Action.WAIT)
             return
+        if event.key == pygame.K_e:
+            self._play_human(Action.PULSE)
+            return
         direction = DIRECTION_KEYS.get(event.key)
         if direction is None:
             return
@@ -208,7 +212,7 @@ class MatchScene(Scene):
         gy = (pos[1] - self.board.rect.top) // self.board.tile
         target = self.controller.map.cell(gx, gy)
         state = self.controller.state
-        for action in legal_actions(self.controller.map, state):
+        for action in legal_actions(self.controller.map, state, self.controller.config):
             path = path_of(self.controller.map, state, state.to_move, action)
             if path and path[-1] == target:
                 self._play_human(action)
@@ -277,6 +281,11 @@ class MatchScene(Scene):
                     f"+{self.setup.config.core_energy} energy",
                     theme.CORE,
                 )
+            elif isinstance(ev, PulseEvent):
+                self._log(
+                    f"R{r} · EMP pulse! Hunter stunned for {self.setup.config.pulse_stun} turns",
+                    theme.SURVIVOR,
+                )
             elif isinstance(ev, CaptureEvent):
                 self._log(f"R{r} · CAPTURED!", theme.HUNTER)
             elif isinstance(ev, MatchEndEvent) and ev.reason is not WinReason.CAPTURED:
@@ -304,7 +313,7 @@ class MatchScene(Scene):
                 plans[role] = ins.plan
         hints = None
         if ctrl.is_human_turn() and not self.board.animating:
-            hints = self.board.human_hints(state, legal_actions(ctrl.map, state))
+            hints = self.board.human_hints(state, legal_actions(ctrl.map, state, ctrl.config))
         self.board.draw(surface, state, self.overlays, plans, hints)
 
         for role, rect in ((Role.HUNTER, LEFT_PANEL), (Role.SURVIVOR, RIGHT_PANEL)):
@@ -400,6 +409,15 @@ class MatchScene(Scene):
         theme.blit_text(
             surface, f"DASH   {dash}", (x, y + 10), "mono", 14, theme.SURVIVOR_SOFT, "midleft"
         )
+        if state.hunter_stun:
+            emp, emp_color = f"STUN {state.hunter_stun}", theme.SURVIVOR
+        else:
+            emp = "READY" if state.pulse_cooldown == 0 else f"{state.pulse_cooldown}"
+            emp_color = theme.SURVIVOR_SOFT
+        theme.blit_text(
+            surface, "EMP", (x + 150, y - 12), "mono", 14, theme.SURVIVOR_SOFT, "midleft"
+        )
+        theme.blit_text(surface, emp, (x + 150, y + 10), "mono", 14, emp_color, "midleft")
 
     def _controller_name(self, role: Role) -> str:
         algorithm = self.setup.controller(role)
@@ -419,7 +437,7 @@ class MatchScene(Scene):
                 color if i == 0 else theme.scale(color, 0.6),
             )
         hint = (
-            "P pause · N step · R restart · M new map · +/− speed · "
+            "E emp · P pause · N step · R restart · M new map · +/− speed · "
             "L/T/H overlays · Esc menu · F11 fullscreen"
         )
         theme.blit_text(

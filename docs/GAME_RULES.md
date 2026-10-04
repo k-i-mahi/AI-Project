@@ -10,12 +10,14 @@ deterministic and has perfect information. One side is the **Hunter**, the other
 |---|---|---|
 | Size | 21 × 15 tiles | including a solid border |
 | Walls | ~24 % of the interior | short straight / L-shaped segments that never touch, leaving corridors open |
-| Symmetry | left ↔ right mirror | neither spawn is favoured |
-| Connectivity | guaranteed | unreachable pockets are sealed after generation |
-| Spawns | Hunter west, Survivor east | 3 × 3 pockets are always clear |
+| Symmetry | left ↔ right mirrored walls | a balanced layout |
+| Connectivity | guaranteed | only the largest connected region is kept |
+| Spawns | **random** | never in a dead end, at least 12 steps apart (`max(8, (w + h) // 3)`) |
 
 Every map is generated from a **seed**. The same seed always produces the same arena, the
-same core spawn order and (with the same agents) the same match.
+same spawn positions, the same core spawn order and (with the same agents) the same match.
+Every new game from the menu picks a random seed, so spawns change each time. A rematch
+(`R`) keeps the seed; *New map* (`M`) rolls a new one.
 
 ## Turn structure
 

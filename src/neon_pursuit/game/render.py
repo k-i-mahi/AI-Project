@@ -19,6 +19,7 @@ from ..engine import (
     GameState,
     MatchConfig,
     MoveEvent,
+    PulseEvent,
     Role,
     path_of,
     territory_owner_map,
@@ -268,6 +269,13 @@ class BoardView:
                 self.flash, self.flash_color = 0.25, theme.CORE
             elif isinstance(event, CoreSpawnedEvent):
                 self.core_spawn_time[event.cell] = self.time
+            elif isinstance(event, PulseEvent):
+                cx, cy = self.cell_center(event.cell)
+                self.particles.ring(cx * self.tile, cy * self.tile, theme.SURVIVOR, 48, 340)
+                self.particles.ring(cx * self.tile, cy * self.tile, theme.SURVIVOR_SOFT, 32, 220)
+                self.particles.burst(cx * self.tile, cy * self.tile, theme.SURVIVOR_SOFT, 30, 160)
+                self.shake = max(self.shake, 0.35)
+                self.flash, self.flash_color = 0.35, theme.SURVIVOR
             elif isinstance(event, CaptureEvent):
                 cx, cy = self.cell_center(event.cell)
                 self.particles.burst(cx * self.tile, cy * self.tile, theme.HUNTER, 70, 420, 1.3, 5)
@@ -519,11 +527,37 @@ class BoardView:
         pygame.draw.polygon(surface, theme.HUNTER, inner)
         pygame.draw.polygon(surface, theme.HUNTER_SOFT, outer, 2)
         pygame.draw.circle(surface, (255, 230, 240), pt(0.0, r * 0.25), max(2, ts // 14))
-        if ready:
+        if ready and not state.hunter_stun:
             ring = r * (1.25 + 0.1 * pulse)
             pygame.draw.circle(
                 surface, theme.scale(theme.HUNTER, 0.5 + 0.4 * pulse), (cx, cy), ring, 1
             )
+        if state.hunter_stun:
+            self._draw_stun(surface, (cx, cy), state.hunter_stun)
+
+    def _draw_stun(self, surface: pygame.Surface, center: tuple[float, float], turns: int) -> None:
+        """Electric arcs around a stunned Hunter plus a turn counter."""
+        cx, cy = center
+        ts = self.tile
+        rng = random.Random(int(self.time * 20))
+        for _ in range(4):
+            a0 = rng.uniform(0, math.tau)
+            pts = []
+            for k in range(4):
+                a = a0 + k * 0.35
+                rad = ts * (0.45 + rng.uniform(-0.08, 0.12))
+                pts.append((cx + math.cos(a) * rad, cy + math.sin(a) * rad))
+            pygame.draw.lines(surface, theme.SURVIVOR_SOFT, False, pts, 2)
+        theme.blit_glow(surface, (cx, cy), round(ts * 0.9), theme.SURVIVOR, 0.35)
+        theme.blit_text(
+            surface,
+            f"STUNNED {turns}",
+            (cx, cy - ts * 0.75),
+            "ui_bold",
+            max(12, ts // 3),
+            theme.SURVIVOR_SOFT,
+            "center",
+        )
 
     # --- Human helpers --------------------------------------------------------
 

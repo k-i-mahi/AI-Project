@@ -93,7 +93,9 @@ def test_controller_human_and_ai_turns() -> None:
         ctrl.request_ai()  # no-op on a human turn
         assert not ctrl.ai_ready()
 
-        illegal = next(a for a in Action if a not in legal_actions(ctrl.map, ctrl.state))
+        illegal = next(
+            a for a in Action if a not in legal_actions(ctrl.map, ctrl.state, ctrl.config)
+        )
         assert ctrl.play_human(illegal) is None
         turn = ctrl.play_human(Action.WAIT)
         assert turn is not None and turn.role is Role.SURVIVOR

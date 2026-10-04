@@ -106,14 +106,18 @@ def greedy_hunter_action(
 
 def greedy_survivor_action(
     game_map: GameMap,
+    config: MatchConfig,
     state: GameState,
     actions: list[Action],
     rng: random.Random | None = None,
-    max_energy: int = 45,
 ) -> Action:
-    """Move that balances distance from the Hunter against reaching a core (hungrier = bolder)."""
+    """Move that balances distance from the Hunter against reaching a core (hungrier = bolder).
+
+    A stunned Hunter loses turns, so stun rounds count as extra distance; the EMP
+    pulse is therefore chosen exactly when the Hunter is about to strike.
+    """
     size = game_map.width * game_map.height
-    hunger = 1.0 + 2.0 * (1.0 - state.energy / max_energy)
+    hunger = 1.0 + 2.0 * (1.0 - state.energy / config.max_energy)
     hunter_base = state.hunter * size
     pounce_ready = state.pounce_cooldown == 0
     best: list[Action] = []
@@ -125,6 +129,7 @@ def greedy_survivor_action(
         cell = path[-1]
         d = game_map.dist[hunter_base + cell]
         reach = d - 1 if pounce_ready and d >= 2 else d
+        reach += config.pulse_stun if a is Action.PULSE else state.hunter_stun
         if reach <= 1:
             score = -100.0 + d
         else:
@@ -133,6 +138,8 @@ def greedy_survivor_action(
             score = min(reach, 6) * 1.5 - core_d * hunger + grabbed * 8.0
             if a.is_burst:
                 score -= 1.5  # Keep the dash for emergencies.
+            elif a is Action.PULSE:
+                score -= 4.0  # Only worth it when the Hunter is about to strike.
         if score > best_score + 1e-9:
             best, best_score = [a], score
         elif abs(score - best_score) <= 1e-9:
@@ -143,12 +150,12 @@ def greedy_survivor_action(
 
 
 def rollout_action(
-    game_map: GameMap, state: GameState, rng: random.Random, epsilon: float, max_energy: int = 45
+    game_map: GameMap, config: MatchConfig, state: GameState, rng: random.Random, epsilon: float
 ) -> Action:
     """Epsilon-greedy default policy used inside MCTS simulations."""
-    actions = legal_actions(game_map, state)
+    actions = legal_actions(game_map, state, config)
     if rng.random() < epsilon:
         return rng.choice(actions)
     if state.to_move is Role.HUNTER:
         return greedy_hunter_action(game_map, state, actions, rng)
-    return greedy_survivor_action(game_map, state, actions, rng, max_energy)
+    return greedy_survivor_action(game_map, config, state, actions, rng)

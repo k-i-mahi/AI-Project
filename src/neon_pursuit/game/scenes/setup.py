@@ -1,13 +1,14 @@
-"""Custom match configuration screen."""
+"""Match setup: pick the algorithm (and difficulty) for each side before playing."""
 
 from __future__ import annotations
 
 import random
+from enum import Enum
 from typing import TYPE_CHECKING
 
 import pygame
 
-from ...ai import ALGORITHMS, AlgorithmId
+from ...ai import ALGORITHMS, AgentSettings, AlgorithmId
 from ...engine import MatchConfig, Role, generate_map, initial_state
 from ...presets import Difficulty, settings_for
 from .. import theme
@@ -19,14 +20,40 @@ from .base import Scene
 if TYPE_CHECKING:
     from ..app import App
 
-CONTROLLERS: list[tuple[AlgorithmId | None, str]] = [
+AI_CONTROLLERS: list[tuple[AlgorithmId | None, str]] = [
     (AlgorithmId.MCTS, "Monte Carlo Tree Search"),
     (AlgorithmId.FUZZY, "Fuzzy Logic"),
     (AlgorithmId.MINIMAX, "Minimax (Alpha-Beta)"),
     (AlgorithmId.GREEDY, "Greedy"),
     (AlgorithmId.RANDOM, "Random"),
-    (None, "Human (you)"),
 ]
+CONTROLLERS: list[tuple[AlgorithmId | None, str]] = [*AI_CONTROLLERS, (None, "Human (you)")]
+
+
+class SetupMode(Enum):
+    """Which sides the player may configure."""
+
+    DUEL = ("AI DUEL", "Pick an algorithm for each side, then watch them fight.")
+    PLAY_SURVIVOR = ("PLAY AS SURVIVOR", "You are the Survivor. Choose the AI that hunts you.")
+    PLAY_HUNTER = ("PLAY AS HUNTER", "You are the Hunter. Choose the AI you will chase.")
+    CUSTOM = ("CUSTOM MATCH", "Choose a brain for each side. Any algorithm can play either role.")
+
+    @property
+    def title(self) -> str:
+        return self.value[0]
+
+    @property
+    def subtitle(self) -> str:
+        return self.value[1]
+
+    def human_role(self) -> Role | None:
+        if self is SetupMode.PLAY_SURVIVOR:
+            return Role.SURVIVOR
+        if self is SetupMode.PLAY_HUNTER:
+            return Role.HUNTER
+        return None
+
+
 DIFFICULTIES = [(Difficulty.EASY, "Easy"), (Difficulty.NORMAL, "Normal"), (Difficulty.HARD, "Hard")]
 CORES = [(6, "6 cores"), (8, "8 cores"), (10, "10 cores"), (12, "12 cores")]
 
@@ -36,19 +63,24 @@ PREVIEW_AREA = pygame.Rect(540, 190, 520, 380)
 
 
 class SetupScene(Scene):
-    def __init__(self, app: App) -> None:
+    def __init__(self, app: App, mode: SetupMode = SetupMode.CUSTOM) -> None:
         super().__init__(app)
-        self.seed = 2026
+        self.mode = mode
+        self.human = mode.human_role()
+        self.seed = random.randrange(10_000)  # new map and spawns every time
         self.controller: dict[Role, Selector[AlgorithmId | None]] = {}
         self.difficulty: dict[Role, Selector[Difficulty]] = {}
+        options = CONTROLLERS if mode is SetupMode.CUSTOM else AI_CONTROLLERS
         for role, card, default in (
             (Role.HUNTER, HUNTER_CARD, 0),
             (Role.SURVIVOR, SURVIVOR_CARD, 1),
         ):
+            if role is self.human:
+                continue
             color = theme.ROLE_COLOR[role]
             sel = Selector(
                 pygame.Rect(card.left + 24, card.top + 110, card.width - 48, 50),
-                CONTROLLERS,
+                options,
                 default,
                 color,
             )
@@ -121,23 +153,31 @@ class SetupScene(Scene):
 
         config = MatchConfig(seed=self.seed, cores_to_win=self.cores.value)
         setup = MatchSetup(
-            hunter=self.controller[Role.HUNTER].value,
-            survivor=self.controller[Role.SURVIVOR].value,
+            hunter=self._algorithm(Role.HUNTER),
+            survivor=self._algorithm(Role.SURVIVOR),
             config=config,
-            hunter_settings=settings_for(self.difficulty[Role.HUNTER].value),
-            survivor_settings=settings_for(self.difficulty[Role.SURVIVOR].value),
+            hunter_settings=self._settings(Role.HUNTER),
+            survivor_settings=self._settings(Role.SURVIVOR),
         )
         self.app.replace(MatchScene(self.app, setup))
+
+    def _algorithm(self, role: Role) -> AlgorithmId | None:
+        return None if role is self.human else self.controller[role].value
+
+    def _settings(self, role: Role) -> AgentSettings:
+        if role is self.human:
+            return settings_for(Difficulty.NORMAL)
+        return settings_for(self.difficulty[role].value)
 
     def update(self, dt: float) -> None:
         super().update(dt)
         self.preview.update(dt)
 
     def draw_content(self, surface: pygame.Surface) -> None:
-        theme.blit_text(surface, "CUSTOM MATCH", (800, 70), "display", 40, theme.TEXT, "center")
+        theme.blit_text(surface, self.mode.title, (800, 70), "display", 40, theme.TEXT, "center")
         theme.blit_text(
             surface,
-            "Choose a brain for each side — any algorithm can play either role.",
+            self.mode.subtitle,
             (800, 118),
             "ui",
             20,
@@ -159,15 +199,21 @@ class SetupScene(Scene):
             theme.blit_text(
                 surface, goal, (card.left + 24, card.top + 66), "ui", 18, theme.TEXT_DIM
             )
-            theme.blit_text(
-                surface,
-                "DIFFICULTY (search budget)",
-                (card.left + 24, card.top + 182),
-                "ui_bold",
-                15,
-                theme.TEXT_DIM,
-            )
-            algorithm = self.controller[role].value
+            if role is self.human:
+                you = pygame.Rect(card.left + 24, card.top + 110, card.width - 48, 50)
+                pygame.draw.rect(surface, theme.scale(color, 0.2), you, border_radius=10)
+                pygame.draw.rect(surface, color, you, 1, border_radius=10)
+                theme.blit_text(surface, "YOU", you.center, "display", 24, color, "center")
+            else:
+                theme.blit_text(
+                    surface,
+                    "DIFFICULTY (search budget)",
+                    (card.left + 24, card.top + 182),
+                    "ui_bold",
+                    15,
+                    theme.TEXT_DIM,
+                )
+            algorithm = self._algorithm(role)
             points: tuple[str, ...]
             if algorithm is None:
                 desc = (
@@ -189,9 +235,8 @@ class SetupScene(Scene):
                 theme.blit_text(surface, line, (card.left + 24, y), "ui", 19, theme.TEXT)
                 y += 25
             y += 18
-            theme.blit_text(
-                surface, "HOW IT DECIDES", (card.left + 24, y), "ui_bold", 15, theme.TEXT_DIM
-            )
+            heading = "TIPS" if algorithm is None else "HOW IT DECIDES"
+            theme.blit_text(surface, heading, (card.left + 24, y), "ui_bold", 15, theme.TEXT_DIM)
             y += 26
             for point in points:
                 pygame.draw.circle(surface, color, (card.left + 30, y + 11), 3)
@@ -201,7 +246,7 @@ class SetupScene(Scene):
         self.preview.draw(surface, self.preview_state, Overlays(plans=False), {})
         theme.blit_text(
             surface,
-            f"MAP SEED {self.seed}",
+            f"MAP SEED {self.seed}  ·  random spawns",
             (PREVIEW_AREA.centerx, PREVIEW_AREA.bottom + 20),
             "mono",
             16,

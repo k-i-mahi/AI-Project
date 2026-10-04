@@ -11,7 +11,15 @@ from .analysis import (
 )
 from .board import UNREACHABLE, GameMap, generate_map
 from .rng import derive_seed, make_rng
-from .rules import IllegalActionError, apply_action, initial_state, is_legal, legal_actions, path_of
+from .rules import (
+    IllegalActionError,
+    apply_action,
+    can_pulse,
+    initial_state,
+    is_legal,
+    legal_actions,
+    path_of,
+)
 from .types import (
     ALL_ACTIONS,
     Action,
@@ -23,6 +31,7 @@ from .types import (
     MatchConfig,
     MatchEndEvent,
     MoveEvent,
+    PulseEvent,
     Role,
     Status,
     WinReason,
@@ -42,10 +51,12 @@ __all__ = [
     "MatchConfig",
     "MatchEndEvent",
     "MoveEvent",
+    "PulseEvent",
     "Role",
     "Status",
     "WinReason",
     "apply_action",
+    "can_pulse",
     "degree",
     "derive_seed",
     "generate_map",
