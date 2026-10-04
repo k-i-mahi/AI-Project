@@ -36,6 +36,7 @@ def test_simulate_command(capsys: pytest.CaptureFixture[str]) -> None:
     assert code == 0
     assert "wins" in out
     assert "H" in out and "#" in out
+    out.encode("ascii")  # must not crash legacy Windows consoles (cp1252) when redirected
 
 
 def test_benchmark_command(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -57,7 +58,9 @@ def test_benchmark_command(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -
     )
     assert code == 0
     assert len(list(tmp_path.glob("*.md"))) == 1
-    assert "| greedy | random |" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "| greedy | random |" in out
+    out.encode("ascii")
 
 
 def test_ascii_board() -> None:

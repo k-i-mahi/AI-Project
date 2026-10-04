@@ -37,7 +37,7 @@ def _controller(value: str) -> AlgorithmId | None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="neon-pursuit",
-        description="Neon Pursuit — Hunter vs Survivor, an adversarial AI arena.",
+        description="Neon Pursuit - Hunter vs Survivor, an adversarial AI arena.",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--window", default="1440x810", help="window size, e.g. 1920x1080")
@@ -107,7 +107,7 @@ def ascii_board(game_map: GameMap, state: GameState) -> str:
             elif c in state.cores:
                 row.append("*")
             else:
-                row.append("#" if game_map.is_wall(c) else "·")
+                row.append("#" if game_map.is_wall(c) else ".")
         rows.append(" ".join(row))
     return "\n".join(rows)
 
@@ -126,8 +126,8 @@ def cmd_simulate(args: argparse.Namespace) -> int:
     }
     state = initial_state(game_map, cfg)
     print(
-        f"Neon Pursuit · {args.hunter.value} (Hunter) vs {args.survivor.value} (Survivor)"
-        f" · seed {cfg.seed}"
+        f"Neon Pursuit | {args.hunter.value} (Hunter) vs {args.survivor.value} (Survivor)"
+        f" | seed {cfg.seed}"
     )
     start = time.perf_counter()
     while not state.is_terminal:
@@ -136,8 +136,8 @@ def cmd_simulate(args: argparse.Namespace) -> int:
         state = apply_action(game_map, cfg, state, decision.action)
         if role is Role.HUNTER and state.round % 10 == 0:
             print(
-                f"  round {state.round:3d} · cores {state.cores_collected}/{cfg.cores_to_win}"
-                f" · energy {state.energy:2d}"
+                f"  round {state.round:3d} | cores {state.cores_collected}/{cfg.cores_to_win}"
+                f" | energy {state.energy:2d}"
             )
     winner = "HUNTER" if state.status.value == "hunter_win" else "SURVIVOR"
     reason = state.win_reason.value if state.win_reason else "?"
@@ -159,11 +159,11 @@ def cmd_benchmark(args: argparse.Namespace) -> int:
     specs = build_specs(
         pairs, args.games, MatchConfig(seed=args.seed), settings_for(args.difficulty)
     )
-    print(f"Running {len(specs)} matches ({len(pairs)} matchups × {args.games} games)…")
+    print(f"Running {len(specs)} matches ({len(pairs)} matchups x {args.games} games)...")
     start = time.perf_counter()
 
     def progress(_result: object, done: int, total: int) -> None:
-        bar = "█" * int(30 * done / total)
+        bar = "#" * int(30 * done / total)
         print(f"\r  [{bar:<30}] {done}/{total}", end="", flush=True)
 
     results = run_tournament(specs, workers=args.workers, on_result=progress)
