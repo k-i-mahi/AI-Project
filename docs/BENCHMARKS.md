@@ -61,8 +61,9 @@ with the hand-made parameters on **held-out maps** at Normal difficulty, 20 game
    precise tactics, which exact search (Minimax) does better than sampled rollouts.
 4. **The final rules lean towards the Survivor** against every Hunter except Minimax: the MCTS
    mirror goes 35 % to the Hunter, the Fuzzy mirror 10 %. This is the cost of removing the
-   core-camping exploit. Raising `cores_to_win` shifts the balance back toward the Hunter if a
-   closer fight is wanted.
+   core-camping exploit. Raising `cores_to_win` was tested and brings back Minimax dominance
+   instead; one-ply Hunters simply cannot corner an equally fast evader on a map with loops
+   (see [GAME_RULES.md](GAME_RULES.md#why-not-raise-cores_to_win-further)).
 5. **Baselines behave as expected.** Random never survives, and a Random or Greedy Hunter
    almost never catches anything competent.
 
