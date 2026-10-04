@@ -24,6 +24,9 @@ class App:
     def __init__(self, window_size: tuple[int, int] = (1440, 810), headless: bool = False) -> None:
         pygame.init()
         pygame.display.set_caption(f"Neon Pursuit {__version__} — AI Arena")
+        self.headless = headless
+        self.fullscreen = False
+        self.windowed_size = window_size
         flags = 0 if headless else pygame.RESIZABLE
         self.window = pygame.display.set_mode(window_size, flags)
         self.canvas = pygame.Surface((WIDTH, HEIGHT))
@@ -67,6 +70,18 @@ class App:
         s = min(ww / WIDTH, wh / HEIGHT)
         w, h = round(WIDTH * s), round(HEIGHT * s)
         self._view = pygame.Rect((ww - w) // 2, (wh - h) // 2, w, h)
+
+    def toggle_fullscreen(self) -> None:
+        """Switch between a resizable window and borderless desktop-resolution fullscreen."""
+        if self.headless:
+            return
+        if self.fullscreen:
+            self.window = pygame.display.set_mode(self.windowed_size, pygame.RESIZABLE)
+        else:
+            self.windowed_size = self.window.get_size()
+            self.window = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+        self.fullscreen = not self.fullscreen
+        self._update_view()
 
     def to_logical(self, pos: tuple[int, int]) -> tuple[int, int]:
         v = self._view
@@ -122,8 +137,7 @@ class App:
                 self._update_view()
                 continue
             if raw.type == pygame.KEYDOWN and raw.key == pygame.K_F11:
-                pygame.display.toggle_fullscreen()
-                self._update_view()
+                self.toggle_fullscreen()
                 continue
             self.scene.handle(self._translate(raw))
             if not self.running or not self.scenes:
