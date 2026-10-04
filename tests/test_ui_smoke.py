@@ -97,3 +97,18 @@ def test_static_screens_render(app: App) -> None:
     for scene in (HowToScene(app), BenchmarkScene(app)):
         app.scenes = [scene]
         _run(app, 3)
+
+
+def test_how_it_works_content_fits_its_panels(app: App) -> None:
+    from neon_pursuit.game.scenes import howto
+
+    scene = HowToScene(app)
+    app.scenes = [scene]
+    _run(app, 2)
+    panels = {
+        "rules": howto.RULES_PANEL,
+        "brains": howto.BRAINS_PANEL,
+        "controls": howto.CONTROLS_PANEL,
+    }
+    for name, rect in panels.items():
+        assert scene.content_bottom[name] <= rect.bottom - 8, name
