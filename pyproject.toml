@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "neon-pursuit"
-version = "1.1.0"
+version = "1.1.1"
 description = "Adversarial AI arena: a Hunter and a Survivor driven by MCTS, Fuzzy Logic, Minimax and more."
 readme = "README.md"
 requires-python = ">=3.11"

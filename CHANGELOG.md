@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.1] - 2026-10-04
+
+### Fixed
+- *How It Works* screen: content overlapped the panels and the Back button; redesigned into
+  rules / algorithms / controls sections, with a UI test that fails on any overflow.
+- F11 fullscreen: replaced `pygame.display.toggle_fullscreen()` (which warned and re-created
+  the window on Windows) with an explicit toggle that restores the previous window size.
+
 ## [1.1.0] - 2026-10-04
 
 A review-driven release: benchmarks showed the Minimax Hunter winning 100 % of games and the
@@ -32,6 +40,7 @@ fuzzy controller ranking below the Greedy baseline. This release fixes the cause
 ### Fixed
 - A GA loophole where the tuned Survivor ignored "capture next move"; now a hard constraint.
 - Setup screen and `play --cores` defaulted to 8 cores while the engine default is 10.
+- Added the `py.typed` marker promised by the *Typing :: Typed* classifier; package-data tests.
 
 ## [1.0.0] - 2026-10-04
 
