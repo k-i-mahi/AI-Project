@@ -1,0 +1,97 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "neon-pursuit"
+version = "1.0.0"
+description = "Adversarial AI arena: a Hunter and a Survivor driven by MCTS, Fuzzy Logic, Minimax and more."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "k-i-mahi" }]
+keywords = ["ai", "game", "mcts", "fuzzy-logic", "minimax", "pursuit-evasion", "pygame"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Education",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Games/Entertainment :: Puzzle Games",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Typing :: Typed",
+]
+dependencies = ["pygame-ce>=2.5"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6", "mypy>=1.11", "pre-commit>=3.7"]
+
+[project.scripts]
+neon-pursuit = "neon_pursuit.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/k-i-mahi/AI-Project"
+Repository = "https://github.com/k-i-mahi/AI-Project"
+Issues = "https://github.com/k-i-mahi/AI-Project/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/neon_pursuit"]
+
+# --- Ruff -------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "C4", "RUF", "N", "PL", "PERF"]
+ignore = [
+  "PLR0911", # many return statements are clearer than nested branches in rule code
+  "PLR0912",
+  "PLR0913",
+  "PLR0915",
+  "PLR2004", # game constants are documented where they are used
+  "PLR0917", # drawing helpers take (surface, rect, value, colour, ...) positionally
+  "RUF001",  # intentional unicode glyphs (arrows, alpha/beta) in UI strings
+  "RUF002",
+  "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["PLC0415"]
+# Lazy imports: keep pygame out of headless CLI commands and avoid scene import cycles.
+"src/neon_pursuit/cli.py" = ["PLC0415"]
+"src/neon_pursuit/game/scenes/*.py" = ["PLC0415"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+# --- Mypy -------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unreachable = true
+files = ["src", "tests"]
+mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = ["pygame", "pygame.*"]
+ignore_missing_imports = true
+
+# --- Pytest -----------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = ["slow: longer-running simulation tests"]
+
+[tool.coverage.run]
+source = ["neon_pursuit"]
+omit = ["src/neon_pursuit/game/*", "src/neon_pursuit/__main__.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError"]
