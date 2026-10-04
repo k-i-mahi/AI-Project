@@ -27,9 +27,11 @@ from neon_pursuit.engine import (
 
 from .conftest import open_cell_with_free_line
 
+# Budgets only: wall-clock limits are set far out of reach so results never depend on how
+# fast (or how loaded) the machine is. A 200 ms limit once made CI flaky under coverage.
 FAST = AgentSettings(
-    mcts=MctsParams(iterations=60, rollout_depth=8),
-    minimax=MinimaxParams(max_depth=3, time_limit_ms=200),
+    mcts=MctsParams(iterations=60, rollout_depth=8, time_limit_ms=120_000),
+    minimax=MinimaxParams(max_depth=3, node_budget=2_000, time_limit_ms=120_000),
 )
 
 
