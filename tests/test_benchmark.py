@@ -61,6 +61,17 @@ def test_summarise(results: list[MatchResult]) -> None:
     assert table.count("\n") == 4
 
 
+def test_wilson_interval() -> None:
+    from neon_pursuit.benchmark.runner import wilson_interval
+
+    lo, hi = wilson_interval(10, 20)
+    assert lo < 0.5 < hi
+    assert wilson_interval(0, 20)[0] == 0.0 and wilson_interval(0, 20)[1] > 0.0
+    assert wilson_interval(20, 20)[1] == 1.0 and wilson_interval(20, 20)[0] < 1.0
+    narrow, wide = wilson_interval(50, 100), wilson_interval(5, 10)
+    assert narrow[1] - narrow[0] < wide[1] - wide[0]
+
+
 def test_write_reports(results: list[MatchResult], tmp_path: Path) -> None:
     paths = write_reports(results, tmp_path, stem="run")
     assert {p.suffix for p in paths} == {".csv", ".json", ".md"}

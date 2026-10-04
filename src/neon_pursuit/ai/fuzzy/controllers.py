@@ -219,6 +219,10 @@ class FuzzyAgent(Agent):
             stats=[
                 ("Rules fired", f"{sum(1 for f in firings if f.strength > 0)}/{len(firings)}"),
                 ("Output", f"{detail.output:.3f} ({label})"),
+                (
+                    "Parameters",
+                    "hand-made" if self.genome in (MANUAL_SURVIVOR, MANUAL_HUNTER) else "GA-tuned",
+                ),
             ],
             fuzzy_inputs=inputs,
             fuzzy_rules=firings,

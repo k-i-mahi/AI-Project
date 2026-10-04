@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "neon-pursuit"
-version = "1.0.0"
+version = "1.1.0"
 description = "Adversarial AI arena: a Hunter and a Survivor driven by MCTS, Fuzzy Logic, Minimax and more."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -89,7 +89,7 @@ markers = ["slow: longer-running simulation tests"]
 
 [tool.coverage.run]
 source = ["neon_pursuit"]
-omit = ["src/neon_pursuit/game/*", "src/neon_pursuit/__main__.py"]
+omit = ["src/neon_pursuit/__main__.py"]
 
 [tool.coverage.report]
 show_missing = true

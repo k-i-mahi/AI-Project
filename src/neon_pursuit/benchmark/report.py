@@ -12,12 +12,13 @@ from .runner import MatchResult, MatchupSummary, summarise
 
 def markdown_table(summaries: list[MatchupSummary]) -> str:
     header = (
-        "| Hunter | Survivor | Games | Hunter win % | Captures | Starved | Escapes | Timeouts "
-        "| Avg rounds | Avg cores | Hunter ms/move | Survivor ms/move |\n"
-        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n"
+        "| Hunter | Survivor | Games | Hunter win % | 95% CI | Captures | Starved | Escapes "
+        "| Timeouts | Avg rounds | Avg cores | Hunter ms/move | Survivor ms/move |\n"
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n"
     )
     rows = [
-        f"| {s.hunter} | {s.survivor} | {s.games} | {s.hunter_win_rate:.0%} | {s.captures} "
+        f"| {s.hunter} | {s.survivor} | {s.games} | {s.hunter_win_rate:.0%} "
+        f"| {s.hunter_win_ci[0]:.0%}-{s.hunter_win_ci[1]:.0%} | {s.captures} "
         f"| {s.hunter_wins - s.captures} | {s.escapes} | {s.timeouts} | {s.avg_rounds:.1f} "
         f"| {s.avg_cores:.1f} | {s.hunter_ms:.1f} | {s.survivor_ms:.1f} |"
         for s in sorted(summaries, key=lambda s: (s.hunter, s.survivor))

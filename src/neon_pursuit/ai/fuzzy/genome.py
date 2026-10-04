@@ -15,6 +15,7 @@ algorithm in :mod:`.tuning` fit it to the game.
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from functools import cache
 from importlib import resources
@@ -136,10 +137,34 @@ MANUAL_HUNTER = FuzzyGenome(
 )
 
 
-def partition(name: str, spec: VariableSpec, points: tuple[float, ...]) -> LinguisticVariable:
-    """Build a Ruspini partition from sorted breakpoints (2 or 3 terms)."""
-    low, high, labels, unit = spec
+#: Domain-knowledge constraints the optimiser may not violate: the *first*
+#: breakpoint of these variables has a lower bound. ``danger <= 1`` means the
+#: Hunter can capture on its next move, which must always be fully "critical".
+MIN_FIRST_BREAKPOINT: dict[str, float] = {"danger": 1.0}
+
+
+def normalize_points(name: str, spec: VariableSpec, points: Sequence[float]) -> tuple[float, ...]:
+    """Sort, clamp to the universe, apply constraints and keep a minimum spacing.
+
+    The spacing (1 % of the range) prevents degenerate, overlapping terms so the
+    result is always a valid Ruspini partition.
+    """
+    low, high, _labels, _unit = spec
+    eps = 0.01 * (high - low)
     pts = sorted(min(high, max(low, p)) for p in points)
+    pts[0] = max(pts[0], MIN_FIRST_BREAKPOINT.get(name, low))
+    for i in range(1, len(pts)):
+        pts[i] = max(pts[i], pts[i - 1] + eps)
+    pts[-1] = min(pts[-1], high)
+    for i in range(len(pts) - 2, -1, -1):
+        pts[i] = min(pts[i], pts[i + 1] - eps)
+    return tuple(round(p, 4) for p in pts)
+
+
+def partition(name: str, spec: VariableSpec, points: Sequence[float]) -> LinguisticVariable:
+    """Build a Ruspini partition from breakpoints (2 or 3 terms)."""
+    low, high, labels, unit = spec
+    pts = normalize_points(name, spec, points)
     if len(labels) == 2:
         a, b = pts
         terms = {labels[0]: Trapezoid(low, low, a, b), labels[1]: Trapezoid(a, b, high, high)}

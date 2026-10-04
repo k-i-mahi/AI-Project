@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import math
 import os
 import statistics
 from collections.abc import Callable, Iterable
@@ -131,6 +132,26 @@ class MatchupSummary:
     @property
     def hunter_win_rate(self) -> float:
         return self.hunter_wins / self.games if self.games else 0.0
+
+    @property
+    def hunter_win_ci(self) -> tuple[float, float]:
+        """95 % Wilson score interval for the Hunter win rate."""
+        return wilson_interval(self.hunter_wins, self.games)
+
+
+def wilson_interval(successes: int, trials: int, z: float = 1.96) -> tuple[float, float]:
+    """Wilson score confidence interval for a binomial proportion.
+
+    Unlike the normal approximation it stays inside [0, 1] and behaves well for
+    small samples and extreme rates (0 % / 100 %), which benchmarks hit often.
+    """
+    if trials == 0:
+        return (0.0, 1.0)
+    p = successes / trials
+    denom = 1 + z * z / trials
+    centre = (p + z * z / (2 * trials)) / denom
+    half = z * math.sqrt(p * (1 - p) / trials + z * z / (4 * trials * trials)) / denom
+    return (max(0.0, centre - half), min(1.0, centre + half))
 
 
 def summarise(results: list[MatchResult]) -> list[MatchupSummary]:

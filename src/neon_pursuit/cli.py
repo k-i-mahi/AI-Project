@@ -11,10 +11,12 @@ Examples::
 from __future__ import annotations
 
 import argparse
+import random
 import sys
 import time
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 from . import __version__
 from .ai import AlgorithmId, create_agent
@@ -51,7 +53,7 @@ def build_parser() -> argparse.ArgumentParser:
     play.add_argument(
         "--difficulty", type=Difficulty, choices=list(Difficulty), default=Difficulty.NORMAL
     )
-    play.add_argument("--seed", type=int, default=2026)
+    play.add_argument("--seed", type=int, default=None, help="map/spawn seed (default: random)")
     play.add_argument("--cores", type=int, default=8, help="cores the Survivor needs to win")
 
     sim = sub.add_parser("simulate", help="play one AI-vs-AI match in the terminal")
@@ -91,6 +93,23 @@ def build_parser() -> argparse.ArgumentParser:
         "--workers", type=int, default=None, help="parallel processes (default: CPUs - 1)"
     )
     bench.add_argument("--out", type=Path, default=Path("results"), help="output directory")
+    bench.add_argument(
+        "--fuzzy-profile",
+        choices=["tuned", "manual"],
+        default="tuned",
+        help="fuzzy controller parameters: GA-tuned or hand-made",
+    )
+
+    tune = sub.add_parser("tune", help="tune a fuzzy controller with a genetic algorithm")
+    tune.add_argument("--role", choices=["survivor", "hunter", "both"], default="both")
+    tune.add_argument("--population", type=int, default=16)
+    tune.add_argument("--generations", type=int, default=10)
+    tune.add_argument("--games", type=int, default=4, help="games per opponent per genome")
+    tune.add_argument("--seed", type=int, default=7)
+    tune.add_argument("--workers", type=int, default=None)
+    tune.add_argument(
+        "--out", type=Path, default=Path(__file__).parent / "ai" / "fuzzy" / "tuned.json"
+    )
     return parser
 
 
@@ -156,9 +175,9 @@ def cmd_benchmark(args: argparse.Namespace) -> int:
     from .benchmark.runner import build_specs, run_tournament, summarise
 
     pairs = [(h, s) for h in args.hunters for s in args.survivors]
-    specs = build_specs(
-        pairs, args.games, MatchConfig(seed=args.seed), settings_for(args.difficulty)
-    )
+    settings = settings_for(args.difficulty)
+    settings.fuzzy.profile = args.fuzzy_profile
+    specs = build_specs(pairs, args.games, MatchConfig(seed=args.seed), settings)
     print(f"Running {len(specs)} matches ({len(pairs)} matchups x {args.games} games)...")
     start = time.perf_counter()
 
@@ -171,6 +190,42 @@ def cmd_benchmark(args: argparse.Namespace) -> int:
     print(markdown_table(summarise(results)))
     for path in write_reports(results, args.out):
         print(f"wrote {path}")
+    return 0
+
+
+def cmd_tune(args: argparse.Namespace) -> int:
+    import json
+
+    from .ai.fuzzy.tuning import GenerationStats, TuningConfig, evolve
+
+    data: dict[str, Any] = {"genomes": {}}
+    if args.out.exists():
+        data = json.loads(args.out.read_text(encoding="utf-8"))
+    roles = [Role.SURVIVOR, Role.HUNTER] if args.role == "both" else [Role(args.role)]
+    for role in roles:
+        cfg = TuningConfig(
+            role=role,
+            population=args.population,
+            generations=args.generations,
+            games_per_opponent=args.games,
+            seed=args.seed,
+            workers=args.workers,
+        )
+        print(
+            f"Tuning the {role.value} fuzzy controller: {cfg.population} genomes x "
+            f"{cfg.generations} generations"
+        )
+
+        def report(stats: GenerationStats) -> None:
+            print(
+                f"  gen {stats.generation:2d}  best {stats.best:.3f}  mean {stats.mean:.3f}",
+                flush=True,
+            )
+
+        best, _history = evolve(cfg, report)
+        data.setdefault("genomes", {})[role.value] = best.to_json()
+        args.out.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        print(f"  saved best {role.value} genome to {args.out}")
     return 0
 
 
@@ -190,7 +245,8 @@ def cmd_gui(args: argparse.Namespace) -> int:
         from .game.scenes.match import MatchScene
 
         settings = settings_for(args.difficulty)
-        cfg = MatchConfig(seed=args.seed, cores_to_win=args.cores)
+        seed = random.randrange(10_000) if args.seed is None else args.seed
+        cfg = MatchConfig(seed=seed, cores_to_win=args.cores)
         app.push(menu)
         app.run(MatchScene(app, MatchSetup(args.hunter, args.survivor, cfg, settings, settings)))
     else:
@@ -202,6 +258,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "simulate":
         return cmd_simulate(args)
+    if args.command == "tune":
+        return cmd_tune(args)
     if args.command == "benchmark":
         return cmd_benchmark(args)
     return cmd_gui(args)
