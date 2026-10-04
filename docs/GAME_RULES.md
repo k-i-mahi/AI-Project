@@ -82,3 +82,19 @@ matches (MCTS vs MCTS, Minimax vs Minimax, Fuzzy vs Fuzzy, …):
 | EMP pulse | Little change on its own. MCTS Survivors were walking into shallow traps (fixed separately) |
 | Cores spawn in the Survivor's territory | Swung to Survivor-favoured (MCTS mirror 12 % Hunter) |
 | … plus 10 cores to win | No algorithm wins every matchup; the game now leans toward the Survivor except against Minimax (see [BENCHMARKS.md](BENCHMARKS.md)) |
+
+### Why not raise `cores_to_win` further?
+
+A final sweep with the GA-tuned controllers (16 games per cell, Hunter win rate):
+
+| cores_to_win | MCTS mirror | Minimax mirror | Fuzzy mirror | Minimax H vs MCTS S |
+|---|---:|---:|---:|---:|
+| **10** (default) | 31 % | 69 % | 0 % | 69 % |
+| 12 | 44 % | 94 % | 0 % | 94 % |
+| 14 | 44 % | 88 % | 0 % | 100 % |
+
+A higher target helps weaker Hunters slightly, but it brings back Minimax dominance. The Fuzzy
+mirror stays at 0 % whatever the setting. The remaining imbalance is therefore about *hunting
+ability*, not the rules. A one-ply chaser (Fuzzy, Greedy) cannot corner an equally fast evader
+on a map with cycles, the classic "cops and robbers on graphs" result. Search-based Hunters
+can. Ten cores is the best compromise.

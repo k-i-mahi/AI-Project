@@ -233,7 +233,9 @@ Limitations, stated plainly:
 
 - **Survivor-leaning balance.** Removing the core-camping exploit tilted the game toward the
   Survivor: only Minimax hunts reliably (71 % as Hunter); MCTS wins 42 % and Fuzzy 30 %.
-  `cores_to_win` is the knob for a closer fight.
+  Raising `cores_to_win` was tested and rejected: it brings back Minimax dominance. One-ply
+  Hunters (Fuzzy, Greedy) cannot corner an equally fast evader on a map with loops
+  ([details](docs/GAME_RULES.md#why-not-raise-cores_to_win-further)).
 - **Greedy vs Greedy is one-sided.** A one-ply chaser cannot corner anyone, so the Survivor
   wins that mirror almost every time.
 - The GA tunes against a fixed opponent panel at Easy budgets, so a tuned controller can still

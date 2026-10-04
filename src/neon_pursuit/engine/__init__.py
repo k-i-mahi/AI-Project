@@ -2,7 +2,6 @@
 
 from .analysis import (
     degree,
-    nearest_core,
     safe_core_distance,
     survivor_territory,
     territory_fraction,
@@ -64,7 +63,6 @@ __all__ = [
     "is_legal",
     "legal_actions",
     "make_rng",
-    "nearest_core",
     "path_of",
     "safe_core_distance",
     "survivor_territory",

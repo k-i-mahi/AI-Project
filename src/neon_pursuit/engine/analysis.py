@@ -7,20 +7,6 @@ import math
 from .board import UNREACHABLE, GameMap
 from .types import GameState
 
-
-def nearest_core(game_map: GameMap, state: GameState, cell: int) -> tuple[int, float]:
-    """Return ``(core_cell, distance)`` of the closest active core (``(-1, inf)`` if none)."""
-    best, best_d = -1, math.inf
-    base = cell * game_map.width * game_map.height
-    dist = game_map.dist
-    for core in state.cores:
-        if core >= 0:
-            d = dist[base + core]
-            if d < best_d:
-                best, best_d = core, d
-    return best, best_d
-
-
 #: Extra distance charged for a core the Hunter would reach first.
 CONTESTED_CORE_PENALTY = 6
 
