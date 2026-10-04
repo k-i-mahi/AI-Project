@@ -1,0 +1,14 @@
+name: Feature request
+description: Suggest a new algorithm, game mechanic or improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: Proposal
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Motivation

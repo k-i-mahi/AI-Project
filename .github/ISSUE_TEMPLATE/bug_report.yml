@@ -1,0 +1,25 @@
+name: Bug report
+description: Something is broken or behaves unexpectedly
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Include the expected behaviour as well.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Algorithms, difficulty and map seed make most issues reproducible.
+      placeholder: |
+        neon-pursuit play --hunter mcts --survivor fuzzy --seed 2026
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      placeholder: "Windows 11, Python 3.13, pygame-ce 2.5.8"
